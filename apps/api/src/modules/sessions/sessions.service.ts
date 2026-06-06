@@ -142,6 +142,11 @@ export class SessionsService {
         data: { status: 'ended', endedAt, bytesEstimated: bytesConsumed },
       });
 
+      await tx.user.update({
+        where: { id: session.userId },
+        data: { bandwidthBytesUsedTotal: { increment: bytesConsumed } },
+      });
+
       if (adjustment > 0) {
         await tx.user.update({
           where: { id: session.userId },

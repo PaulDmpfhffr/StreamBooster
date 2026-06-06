@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { BandwidthBar } from '../components/BandwidthBar';
 import { ScreenshotGrid } from '../components/ScreenshotGrid';
 import { Play, Square, Settings } from 'lucide-react';
@@ -23,7 +23,6 @@ export default function Main({ account, onLogout }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [screenshots, setScreenshots] = useState<Record<number, string>>({});
   const [bandwidth, setBandwidth] = useState(account.bandwidthBytesRemaining);
-  const heartbeatRef = useRef<NodeJS.Timer | null>(null);
 
   useEffect(() => {
     window.sbAPI.on('screenshot:update', (data: unknown) => {
