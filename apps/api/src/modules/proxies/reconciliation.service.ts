@@ -58,6 +58,7 @@ export class ReconciliationService {
             if (realBytes === 0) continue;
 
             const estimated = Number(session.bytesEstimated);
+            if (estimated === 0) continue;
             const diff = Math.abs(realBytes - estimated);
             if (diff / estimated > ADJUSTMENT_THRESHOLD) {
               await this.prisma.session.update({

@@ -89,7 +89,12 @@ export class ProxiesService {
 
       if (!candidate) throw new BadRequestException('Proxy allocation failed');
 
-      const address = this.decrypt(candidate.proxy.addressEncrypted);
+      let address: string;
+      try {
+        address = this.decrypt(candidate.proxy.addressEncrypted);
+      } catch {
+        throw new BadRequestException('Proxy data corrupted — contact support');
+      }
       selected.push({ proxy: candidate.proxy, address });
       providerCounts.set(
         candidate.provider.id,

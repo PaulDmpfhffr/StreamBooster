@@ -149,7 +149,7 @@ export class SessionsService {
         data: { bandwidthBytesUsedTotal: { increment: bytesConsumed } },
       });
 
-      if (adjustment > 0) {
+      if (adjustment !== 0) {
         await tx.user.update({
           where: { id: session.userId },
           data: { bandwidthBytesRemaining: { increment: adjustment } },
@@ -157,7 +157,7 @@ export class SessionsService {
         await tx.bandwidthTransaction.create({
           data: {
             userId: session.userId,
-            type: 'refund',
+            type: adjustment > 0 ? 'refund' : 'consumption',
             bytesDelta: adjustment,
             description: `Ajustement fin session ${sessionId.slice(0, 8)}`,
           },
