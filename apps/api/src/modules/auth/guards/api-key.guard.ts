@@ -13,8 +13,10 @@ export class ApiKeyGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+    const authHeader: string | undefined = request.headers['authorization'];
     const apiKey: string | undefined =
-      request.headers['x-api-key'] ?? request.headers['authorization']?.replace('ApiKey ', '');
+      request.headers['x-api-key'] ??
+      (authHeader?.startsWith('ApiKey ') ? authHeader.replace('ApiKey ', '') : undefined);
 
     if (!apiKey) throw new UnauthorizedException('API key required');
 
