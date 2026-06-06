@@ -1,6 +1,6 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/guards/jwt.guard';
-import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { JwtOrApiKeyGuard } from '../auth/guards/jwt-or-api-key.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { User } from '@prisma/client';
@@ -10,7 +10,7 @@ export class UsersController {
   constructor(private prisma: PrismaService) {}
 
   @Get('me')
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   getMe(@CurrentUser() user: User) {
     return {
       id: user.id,

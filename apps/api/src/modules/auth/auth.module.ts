@@ -9,6 +9,8 @@ import { JwtGuard } from './guards/jwt.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { ApiKeyGuard } from './guards/api-key.guard';
+import { WsJwtGuard } from './guards/ws-jwt.guard';
+import { JwtOrApiKeyGuard } from './guards/jwt-or-api-key.guard';
 
 @Module({
   imports: [PassportModule, JwtModule.register({})],
@@ -21,7 +23,9 @@ import { ApiKeyGuard } from './guards/api-key.guard';
     JwtRefreshGuard,
     RolesGuard,
     ApiKeyGuard,
+    WsJwtGuard,
+    JwtOrApiKeyGuard,
   ],
-  exports: [AuthService, JwtGuard, RolesGuard, ApiKeyGuard],
+  exports: [AuthService, JwtGuard, RolesGuard, ApiKeyGuard, WsJwtGuard, JwtOrApiKeyGuard, JwtModule],
 })
 export class AuthModule {}
