@@ -98,6 +98,41 @@ describe('Auth (e2e)', () => {
     });
   });
 
+  describe('POST /api/v1/auth/refresh', () => {
+    it('retourne une nouvelle paire de tokens avec un refresh token valide', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken })
+        .expect(200)
+        .then((res) => {
+          expect(res.body.accessToken).toBeDefined();
+          expect(res.body.refreshToken).toBeDefined();
+          // Mettre à jour les tokens pour les tests suivants
+          accessToken = res.body.accessToken;
+          refreshToken = res.body.refreshToken;
+        });
+    });
+
+    it('retourne 401 si le refresh token a déjà été utilisé (replay attack)', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email, password });
+      const firstToken = loginRes.body.refreshToken;
+
+      // Première utilisation — OK
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: firstToken })
+        .expect(200);
+
+      // Deuxième utilisation du même token — doit être rejeté
+      return request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: firstToken })
+        .expect(401);
+    });
+  });
+
   describe('POST /api/v1/keys', () => {
     it('crée une clé API et retourne le raw', () => {
       return request(app.getHttpServer())
