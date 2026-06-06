@@ -3,6 +3,7 @@ import { AuthService } from '../auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
 const mockPrisma = {
@@ -22,7 +23,7 @@ describe('AuthService', () => {
     const module = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: 'PrismaService', useValue: mockPrisma },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
       ],

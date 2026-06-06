@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { ProxiesService } from '../proxies.service';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 const mockPrisma = {
   sessionProxy: { findMany: jest.fn(() => []) },
@@ -23,7 +24,7 @@ describe('ProxiesService', () => {
     const module = await Test.createTestingModule({
       providers: [
         ProxiesService,
-        { provide: 'PrismaService', useValue: mockPrisma },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();

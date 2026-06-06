@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { BillingService } from '../billing.service';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 const mockPrisma = {
   user: {
@@ -33,7 +34,7 @@ describe('BillingService', () => {
     const module = await Test.createTestingModule({
       providers: [
         BillingService,
-        { provide: 'PrismaService', useValue: mockPrisma },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();

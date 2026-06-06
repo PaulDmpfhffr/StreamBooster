@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { RedisModule } from '@nestjs-modules/ioredis';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
@@ -22,6 +23,13 @@ import configuration from './config/configuration';
     ThrottlerModule.forRoot([
       { name: 'short', ttl: 60000, limit: 60 },
     ]),
+    RedisModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'single',
+        url: config.get<string>('redis.url'),
+      }),
+    }),
     PrismaModule,
     AuthModule,
     ApiKeysModule,

@@ -9,7 +9,6 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProxiesService } from '../proxies/proxies.service';
-import { ApiKey } from '@prisma/client';
 
 const HEARTBEAT_TTL = 90;
 const BITRATE_SOURCE_BYTES_PER_SEC = 5000 * 1024;
