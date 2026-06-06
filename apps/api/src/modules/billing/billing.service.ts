@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 
+const UNLIMITED_BYTES = 10 * 1024 * 1024 * 1024 * 1024; // 10 To créditées par cycle de facturation
+
 const PRODUCT_DEFINITIONS = [
   {
     id: 'starter',
@@ -121,18 +123,20 @@ export class BillingService {
       if (!userId || !productId) return;
 
       const def = PRODUCT_DEFINITIONS.find((p) => p.id === productId);
-      if (!def || !def.bytes) return;
+      if (!def) return;
+
+      const bytesToCredit = def.bytes ?? UNLIMITED_BYTES;
 
       await this.prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: userId },
-          data: { bandwidthBytesRemaining: { increment: def.bytes! } },
+          data: { bandwidthBytesRemaining: { increment: bytesToCredit } },
         });
         await tx.bandwidthTransaction.create({
           data: {
             userId,
             type: 'purchase',
-            bytesDelta: def.bytes!,
+            bytesDelta: bytesToCredit,
             description: `Achat ${def.name}`,
             stripePaymentId: session.payment_intent as string,
           },
