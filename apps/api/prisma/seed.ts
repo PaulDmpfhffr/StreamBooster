@@ -58,15 +58,18 @@ async function main() {
     { address: 'socks5://demo:demo@192.168.1.4:1080', country: 'DE' },
   ];
 
-  for (const p of demoProxies) {
-    await prisma.proxyPool.create({
-      data: {
-        providerId: manualProvider.id,
-        addressEncrypted: encrypt(p.address),
-        countryCode: p.country,
-        type: 'datacenter',
-      },
-    });
+  const existingProxies = await prisma.proxyPool.count({ where: { providerId: manualProvider.id } });
+  if (existingProxies === 0) {
+    for (const p of demoProxies) {
+      await prisma.proxyPool.create({
+        data: {
+          providerId: manualProvider.id,
+          addressEncrypted: encrypt(p.address),
+          countryCode: p.country,
+          type: 'datacenter',
+        },
+      });
+    }
   }
 
   const apiKeyRaw = 'sb_demo_key_000000000000000000000000000000';
