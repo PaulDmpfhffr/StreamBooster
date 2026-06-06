@@ -28,12 +28,16 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  registerApiIpc();
-  registerSessionIpc(mainWindow);
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 app.whenReady().then(() => {
+  // Enregistrer les IPC une seule fois, avant la création de fenêtre
+  registerApiIpc();
+  registerSessionIpc(() => mainWindow);
+
   createWindow();
+
   if (process.env.NODE_ENV !== 'development') {
     setupAutoUpdater();
   }

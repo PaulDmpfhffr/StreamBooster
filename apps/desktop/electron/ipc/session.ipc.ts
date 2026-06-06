@@ -3,7 +3,7 @@ import { SessionManager } from '../core/sessionManager';
 
 const manager = new SessionManager();
 
-export function registerSessionIpc(win: BrowserWindow) {
+export function registerSessionIpc(getWin: () => BrowserWindow | null) {
   ipcMain.handle('session:start', async (_e, config: {
     sessionId: string;
     streamUrl: string;
@@ -13,21 +13,21 @@ export function registerSessionIpc(win: BrowserWindow) {
       {
         ...config,
         onScreenshot: (index, png) => {
-          win.webContents.send('screenshot:update', {
+          getWin()?.webContents.send('screenshot:update', {
             index,
             dataUrl: `data:image/png;base64,${png.toString('base64')}`,
           });
         },
       },
       async () => {
-        win.webContents.send('session:heartbeat', config.sessionId);
+        getWin()?.webContents.send('session:heartbeat', config.sessionId);
       },
     );
-    win.webContents.send('session:started', config.sessionId);
+    getWin()?.webContents.send('session:started', config.sessionId);
   });
 
   ipcMain.handle('session:stop', async (_e, sessionId: string) => {
     await manager.stop(sessionId);
-    win.webContents.send('session:stopped', sessionId);
+    getWin()?.webContents.send('session:stopped', sessionId);
   });
 }
