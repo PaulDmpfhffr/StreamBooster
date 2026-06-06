@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"electron-builder --config electron-builder.json5 dev\"",
+    "dev": "tsc -p tsconfig.json && concurrently --kill-others \"vite\" \"sleep 3 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "build": "tsc && vite build && electron-builder",
     "build:win": "tsc && vite build && electron-builder --win",
     "build:mac": "tsc && vite build && electron-builder --mac",
