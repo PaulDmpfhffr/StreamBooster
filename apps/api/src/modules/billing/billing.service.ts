@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 
-const PRODUCTS = [
+const PRODUCT_DEFINITIONS = [
   {
     id: 'starter',
     name: 'Starter',
@@ -11,7 +11,8 @@ const PRODUCTS = [
     bytes: 10 * 1024 * 1024 * 1024,
     priceEur: 4.99,
     isSubscription: false,
-    stripePriceId: process.env.STRIPE_PRICE_STARTER ?? 'price_starter',
+    envKey: 'STRIPE_PRICE_STARTER',
+    fallbackPriceId: 'price_starter',
   },
   {
     id: 'standard',
@@ -20,7 +21,8 @@ const PRODUCTS = [
     bytes: 50 * 1024 * 1024 * 1024,
     priceEur: 19.99,
     isSubscription: false,
-    stripePriceId: process.env.STRIPE_PRICE_STANDARD ?? 'price_standard',
+    envKey: 'STRIPE_PRICE_STANDARD',
+    fallbackPriceId: 'price_standard',
   },
   {
     id: 'pro',
@@ -29,7 +31,8 @@ const PRODUCTS = [
     bytes: 200 * 1024 * 1024 * 1024,
     priceEur: 59.99,
     isSubscription: false,
-    stripePriceId: process.env.STRIPE_PRICE_PRO ?? 'price_pro',
+    envKey: 'STRIPE_PRICE_PRO',
+    fallbackPriceId: 'price_pro',
   },
   {
     id: 'unlimited',
@@ -38,9 +41,10 @@ const PRODUCTS = [
     bytes: null,
     priceEur: 99.99,
     isSubscription: true,
-    stripePriceId: process.env.STRIPE_PRICE_UNLIMITED ?? 'price_unlimited',
+    envKey: 'STRIPE_PRICE_UNLIMITED',
+    fallbackPriceId: 'price_unlimited',
   },
-];
+] as const;
 
 @Injectable()
 export class BillingService {
@@ -54,8 +58,13 @@ export class BillingService {
     this.stripe = new Stripe(config.get<string>('stripe.secretKey')!);
   }
 
+  private getStripePriceId(productId: string): string {
+    const priceIds = this.config.get<Record<string, string>>('stripe.priceIds') ?? {};
+    return priceIds[productId] ?? `price_${productId}`;
+  }
+
   getProducts() {
-    return PRODUCTS.map(({ id, name, description, bytes, priceEur, isSubscription }) => ({
+    return PRODUCT_DEFINITIONS.map(({ id, name, description, bytes, priceEur, isSubscription }) => ({
       id,
       name,
       description,
@@ -66,10 +75,10 @@ export class BillingService {
   }
 
   async createCheckout(userId: string, productId: string, successUrl: string, cancelUrl: string) {
-    const product = PRODUCTS.find((p) => p.id === productId);
-    if (!product) throw new BadRequestException('Unknown product');
+    const def = PRODUCT_DEFINITIONS.find((p) => p.id === productId);
+    if (!def) throw new BadRequestException('Unknown product');
 
-    let user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
     let stripeCustomerId = user.stripeCustomerId;
@@ -82,10 +91,12 @@ export class BillingService {
       });
     }
 
+    const stripePriceId = this.getStripePriceId(def.id);
+
     const session = await this.stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      mode: product.isSubscription ? 'subscription' : 'payment',
-      line_items: [{ price: product.stripePriceId, quantity: 1 }],
+      mode: def.isSubscription ? 'subscription' : 'payment',
+      line_items: [{ price: stripePriceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: { userId, productId },
@@ -100,7 +111,7 @@ export class BillingService {
 
     try {
       event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-    } catch (e) {
+    } catch {
       throw new BadRequestException('Invalid Stripe signature');
     }
 
@@ -109,29 +120,26 @@ export class BillingService {
       const { userId, productId } = session.metadata ?? {};
       if (!userId || !productId) return;
 
-      const product = PRODUCTS.find((p) => p.id === productId);
-      if (!product || !product.bytes) return;
+      const def = PRODUCT_DEFINITIONS.find((p) => p.id === productId);
+      if (!def || !def.bytes) return;
 
       await this.prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: userId },
-          data: {
-            bandwidthBytesRemaining: { increment: product.bytes! },
-            bandwidthBytesUsedTotal: { increment: 0 },
-          },
+          data: { bandwidthBytesRemaining: { increment: def.bytes! } },
         });
         await tx.bandwidthTransaction.create({
           data: {
             userId,
             type: 'purchase',
-            bytesDelta: product.bytes!,
-            description: `Achat ${product.name}`,
+            bytesDelta: def.bytes!,
+            description: `Achat ${def.name}`,
             stripePaymentId: session.payment_intent as string,
           },
         });
       });
 
-      this.logger.log(`Credited ${product.bytes} bytes to user ${userId}`);
+      this.logger.log(`Credited ${def.bytes} bytes to user ${userId}`);
     }
   }
 }

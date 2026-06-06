@@ -17,6 +17,12 @@ export default () => ({
     secretKey: process.env.STRIPE_SECRET_KEY ?? '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
+    priceIds: {
+      starter: process.env.STRIPE_PRICE_STARTER ?? 'price_starter',
+      standard: process.env.STRIPE_PRICE_STANDARD ?? 'price_standard',
+      pro: process.env.STRIPE_PRICE_PRO ?? 'price_pro',
+      unlimited: process.env.STRIPE_PRICE_UNLIMITED ?? 'price_unlimited',
+    },
   },
   encryptionKey: process.env.ENCRYPTION_KEY ?? '0'.repeat(64),
   cors: {
