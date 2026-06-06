@@ -74,4 +74,47 @@ describe('BillingService', () => {
       expect(result.checkoutUrl).toBe('https://stripe.com/pay/cs_test');
     });
   });
+
+  describe('handleWebhook', () => {
+    const makeEvent = (productId: string) => ({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          metadata: { userId: 'user-1', productId },
+          payment_intent: 'pi_test',
+        },
+      },
+    });
+
+    beforeEach(() => {
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
+    });
+
+    it('crédite les bytes corrects pour le plan starter (10 Go)', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue(makeEvent('starter'));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      const call = mockPrisma.user.update.mock.calls[0][0];
+      expect(call.data.bandwidthBytesRemaining.increment).toBe(10 * 1024 * 1024 * 1024);
+    });
+
+    it('crédite 10 To pour le plan unlimited (bytes null → UNLIMITED_BYTES)', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue(makeEvent('unlimited'));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      const call = mockPrisma.user.update.mock.calls[0][0];
+      const TEN_TB = 10 * 1024 * 1024 * 1024 * 1024;
+      expect(call.data.bandwidthBytesRemaining.increment).toBe(TEN_TB);
+    });
+
+    it('ignore les events inconnus silencieusement', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue({ type: 'payment_intent.created', data: { object: {} } });
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('lève BadRequestException si la signature Stripe est invalide', async () => {
+      mockStripe.webhooks.constructEvent.mockImplementation(() => { throw new Error('Bad sig'); });
+      await expect(service.handleWebhook(Buffer.from('{}'), 'invalid')).rejects.toThrow('Invalid Stripe signature');
+    });
+  });
 });
