@@ -58,6 +58,6 @@ export class SessionsGateway implements OnGatewayConnection {
   }
 
   broadcastSessionUpdate(session: { id: string; status: string }) {
-    this.server.emit('session:update', session);
+    this.server?.emit('session:update', session);
   }
 }

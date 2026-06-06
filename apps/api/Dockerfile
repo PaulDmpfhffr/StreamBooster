@@ -11,6 +11,7 @@ FROM deps AS builder
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 RUN npm run build --workspace=packages/shared
+RUN npx prisma generate --schema=apps/api/prisma/schema.prisma
 RUN npm run build --workspace=apps/api
 
 FROM base AS runner
