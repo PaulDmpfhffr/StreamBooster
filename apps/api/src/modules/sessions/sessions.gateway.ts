@@ -6,6 +6,8 @@ import {
   UseGuards,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 
@@ -14,11 +16,22 @@ export class SessionsGateway implements OnGatewayConnection {
   @WebSocketServer()
   server!: Server;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+    private config: ConfigService,
+  ) {}
 
   async handleConnection(client: Socket) {
     const token = client.handshake.auth?.token as string | undefined;
-    if (!token) {
+    if (!token) { client.disconnect(true); return; }
+
+    try {
+      const payload = this.jwt.verify(token, {
+        secret: this.config.get<string>('jwt.secret'),
+      }) as { role: string };
+      if (payload.role !== 'admin') { client.disconnect(true); return; }
+    } catch {
       client.disconnect(true);
       return;
     }

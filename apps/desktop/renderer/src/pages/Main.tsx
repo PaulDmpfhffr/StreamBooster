@@ -25,16 +25,21 @@ export default function Main({ account, onLogout }: Props) {
   const [bandwidth, setBandwidth] = useState(account.bandwidthBytesRemaining);
 
   useEffect(() => {
-    window.sbAPI.on('screenshot:update', (data: unknown) => {
+    const onScreenshot = (data: unknown) => {
       const { index, dataUrl } = data as { index: number; dataUrl: string };
       setScreenshots((prev) => ({ ...prev, [index]: dataUrl }));
-    });
+    };
+    const onHeartbeat = async (sid: unknown) => {
+      if (typeof sid === 'string') await window.sbAPI.apiHeartbeat(sid);
+    };
 
-    window.sbAPI.on('session:heartbeat', async (sid: unknown) => {
-      if (typeof sid === 'string') {
-        await window.sbAPI.apiHeartbeat(sid);
-      }
-    });
+    window.sbAPI.on('screenshot:update', onScreenshot);
+    window.sbAPI.on('session:heartbeat', onHeartbeat);
+
+    return () => {
+      window.sbAPI.off('screenshot:update', onScreenshot);
+      window.sbAPI.off('session:heartbeat', onHeartbeat);
+    };
   }, []);
 
   const startSession = async () => {

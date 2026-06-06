@@ -15,14 +15,15 @@ export class WsJwtGuard implements CanActivate {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) throw new UnauthorizedException('Missing token');
 
+    let payload: { role: string };
     try {
-      const payload = this.jwt.verify(token, {
+      payload = this.jwt.verify(token, {
         secret: this.config.get<string>('jwt.secret'),
       });
-      if (payload.role !== 'admin') throw new UnauthorizedException('Admin only');
-      return true;
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
+    if (payload.role !== 'admin') throw new UnauthorizedException('Admin only');
+    return true;
   }
 }
