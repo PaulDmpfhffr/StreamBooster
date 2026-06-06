@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
+import { autoUpdater } from 'electron-updater';
 import { registerApiIpc } from './ipc/api.ipc';
 import { registerSessionIpc } from './ipc/session.ipc';
 
@@ -31,7 +32,40 @@ function createWindow() {
   registerSessionIpc(mainWindow);
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  if (process.env.NODE_ENV !== 'development') {
+    setupAutoUpdater();
+  }
+});
+
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false;
+
+  autoUpdater.on('update-available', (info) => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Mise à jour disponible',
+      message: `StreamBooster ${info.version} est disponible. Voulez-vous télécharger et installer ?`,
+      buttons: ['Télécharger', 'Plus tard'],
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.downloadUpdate();
+    });
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Mise à jour prête',
+      message: 'La mise à jour a été téléchargée. Redémarrez pour l\'appliquer.',
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+  });
+
+  autoUpdater.checkForUpdates();
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

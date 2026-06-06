@@ -8,6 +8,9 @@ import Keys from './pages/Keys';
 import Billing from './pages/Billing';
 import Usage from './pages/Usage';
 import Admin from './pages/Admin';
+import AdminUsers from './pages/AdminUsers';
+import AdminProxies from './pages/AdminProxies';
+import AdminSessions from './pages/AdminSessions';
 
 export default function App() {
   return (
@@ -22,6 +25,9 @@ export default function App() {
         <Route path="/billing" element={<Billing />} />
         <Route path="/usage" element={<Usage />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/proxies" element={<AdminProxies />} />
+        <Route path="/admin/sessions" element={<AdminSessions />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

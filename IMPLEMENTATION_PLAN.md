@@ -23,7 +23,7 @@
 - [x] **P0.5** `docker-compose.yml` (MySQL 8 + Redis 7)
 - [x] **P0.6** `apps/api` — init NestJS + Prisma structure
 - [x] **P0.7** Prisma schema complet (users, api_keys, proxy_providers, proxy_pool, sessions, session_proxies, bandwidth_transactions)
-- [ ] **P0.8** Première migration Prisma + seed de base
+- [x] **P0.8** Première migration Prisma + seed de base
 - [x] **P0.9** Variables d'environnement (`.env.example`)
 
 ---
@@ -86,9 +86,9 @@
 - [x] **P2.8** Page /billing — Packs + Stripe redirect
 - [x] **P2.9** Page /usage — Graphique conso (Recharts) + historique sessions
 - [x] **P2.10** Page /admin — Stats globales
-- [ ] **P2.11** Page /admin/users — Liste + ajustements solde
-- [ ] **P2.12** Page /admin/proxies — CRUD pool + providers + test connectivité
-- [ ] **P2.13** Page /admin/sessions — Sessions actives WebSocket temps réel
+- [x] **P2.11** Page /admin/users — Liste + ajustements solde
+- [x] **P2.12** Page /admin/proxies — CRUD pool + providers + test connectivité
+- [x] **P2.13** Page /admin/sessions — Sessions actives WebSocket temps réel
 
 ---
 
@@ -108,7 +108,7 @@
 - [x] **P3.12** BandwidthBar (solde + conso en cours)
 - [x] **P3.13** Heartbeat via IPC (api.ipc.ts)
 - [x] **P3.14** electron-builder config (win/mac/linux)
-- [ ] **P3.15** electron-updater (GitHub Releases auto-update)
+- [x] **P3.15** electron-updater (GitHub Releases auto-update)
 
 ---
 
@@ -117,7 +117,7 @@
 - [x] **P4.1** Tests unitaires auth service (register, login, conflit, mauvais MDP)
 - [x] **P4.2** Tests unitaires billing service (products, checkout, client Stripe)
 - [x] **P4.3** Tests unitaires allocation proxys (encrypt/decrypt, allocation, réservation BP)
-- [ ] **P4.4** Tests e2e routes critiques (Supertest) — à compléter avec DB test
+- [x] **P4.4** Tests e2e routes critiques (Supertest) — auth, account, billing, api-keys
 - [x] **P4.5** Checklist sécurité intégrée dans le code (CORS, rate limit, HMAC, AES-256, JWT rotation, SHA-256 API keys)
 - [x] **P4.6** Dockerfile API multi-stage optimisé
 - [ ] **P4.7** Deploy Railway (API) + PlanetScale (MySQL) + Upstash (Redis) — action manuelle requise
@@ -135,3 +135,4 @@
 | 2 | 2026-06-07 | Phase 0 complète + Phase 1 API NestJS (tous modules créés : auth, api-keys, proxies/adapters, sessions, billing, admin, account) |
 | 3 | 2026-06-07 | Phase 2 Dashboard SaaS React (Landing, Login, Register, Dashboard, Keys, Billing, Usage, Admin) + Phase 3 App Electron (main/preload, IPC, sessionManager, 4 injectors, Onboarding, Main, BandwidthBar, ScreenshotGrid, electron-builder) |
 | 4 | 2026-06-07 | Phase 4 : tests unitaires auth/billing/proxies, Prisma seed, Dockerfile multi-stage, vercel.json, ReconciliationService (cron 4h) — IMPLÉMENTATION COMPLÈTE |
+| 5 | 2026-06-07 | Pages admin complètes (AdminUsers, AdminProxies, AdminSessions WebSocket), electron-updater, tests e2e Supertest, script migration Prisma, socket.io-client — TOUTES LES TÂCHES AUTOMATISABLES TERMINÉES |
