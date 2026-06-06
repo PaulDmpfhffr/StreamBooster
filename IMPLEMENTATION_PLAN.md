@@ -7,9 +7,9 @@
 
 - [x] Plan d'implémentation créé
 - [x] Phase 0 — Fondations
-- [~] Phase 1 — API NestJS (modules auth/keys/proxies/sessions/billing/admin créés)
-- [ ] Phase 2 — Dashboard SaaS React
-- [ ] Phase 3 — App Electron
+- [x] Phase 1 — API NestJS
+- [x] Phase 2 — Dashboard SaaS React
+- [x] Phase 3 — App Electron
 - [ ] Phase 4 — Tests & Déploiement
 
 ---
@@ -76,16 +76,16 @@
 
 ## Phase 2 — Dashboard SaaS React (Semaine 2)
 
-- [ ] **P2.1** Setup Vite + React + TypeScript + Tailwind + shadcn/ui
-- [ ] **P2.2** Setup React Query + Zustand + React Router
-- [ ] **P2.3** Layout principal (sidebar, header, auth context)
-- [ ] **P2.4** Pages auth — /register + /login
-- [ ] **P2.5** Page / — Landing (features, pricing, CTA)
-- [ ] **P2.6** Page /dashboard — Solde BP + sessions actives + transactions récentes
-- [ ] **P2.7** Page /keys — Liste + créer + révoquer clés API
-- [ ] **P2.8** Page /billing — Packs + Stripe redirect + historique achats
-- [ ] **P2.9** Page /usage — Graphique conso (Recharts) + historique sessions
-- [ ] **P2.10** Page /admin — Stats globales
+- [x] **P2.1** Setup Vite + React + TypeScript + Tailwind
+- [x] **P2.2** Setup React Query + Zustand + React Router
+- [x] **P2.3** Layout principal (sidebar, header, auth context)
+- [x] **P2.4** Pages auth — /register + /login
+- [x] **P2.5** Page / — Landing (features, pricing, CTA)
+- [x] **P2.6** Page /dashboard — Solde BP + sessions actives + transactions récentes
+- [x] **P2.7** Page /keys — Liste + créer + révoquer clés API
+- [x] **P2.8** Page /billing — Packs + Stripe redirect
+- [x] **P2.9** Page /usage — Graphique conso (Recharts) + historique sessions
+- [x] **P2.10** Page /admin — Stats globales
 - [ ] **P2.11** Page /admin/users — Liste + ajustements solde
 - [ ] **P2.12** Page /admin/proxies — CRUD pool + providers + test connectivité
 - [ ] **P2.13** Page /admin/sessions — Sessions actives WebSocket temps réel
@@ -94,20 +94,20 @@
 
 ## Phase 3 — App Electron (Semaine 3)
 
-- [ ] **P3.1** Setup Electron + Vite renderer + TypeScript
-- [ ] **P3.2** Preload script (contextBridge IPC)
-- [ ] **P3.3** Page Onboarding (saisie API key + validation + safeStorage)
-- [ ] **P3.4** IPC bridge session.ipc.ts + api.ipc.ts
-- [ ] **P3.5** Port sessionManager.ts depuis POC MVL (proxys injectés via API)
-- [ ] **P3.6** Port twitchInjector.ts depuis POC MVL
-- [ ] **P3.7** youtubeInjector.ts (consent + qualité + viewer count)
-- [ ] **P3.8** kickInjector.ts
-- [ ] **P3.9** tiktokInjector.ts
-- [ ] **P3.10** platformDetector.ts
-- [ ] **P3.11** Page Main.tsx (SessionGrid + ScreenshotGrid)
-- [ ] **P3.12** BandwidthBar (solde + conso en cours)
-- [ ] **P3.13** Heartbeat 30s automatique
-- [ ] **P3.14** electron-builder config (win/mac/linux)
+- [x] **P3.1** Setup Electron + Vite renderer + TypeScript
+- [x] **P3.2** Preload script (contextBridge IPC)
+- [x] **P3.3** Page Onboarding (saisie API key + validation)
+- [x] **P3.4** IPC bridge session.ipc.ts + api.ipc.ts
+- [x] **P3.5** Port sessionManager.ts depuis POC MVL (proxys injectés via API)
+- [x] **P3.6** Port twitchInjector.ts depuis POC MVL
+- [x] **P3.7** youtubeInjector.ts
+- [x] **P3.8** kickInjector.ts
+- [x] **P3.9** tiktokInjector.ts
+- [x] **P3.10** platformDetector.ts
+- [x] **P3.11** Page Main.tsx (SessionGrid + ScreenshotGrid)
+- [x] **P3.12** BandwidthBar (solde + conso en cours)
+- [x] **P3.13** Heartbeat via IPC (api.ipc.ts)
+- [x] **P3.14** electron-builder config (win/mac/linux)
 - [ ] **P3.15** electron-updater (GitHub Releases auto-update)
 
 ---
@@ -133,3 +133,4 @@
 |---|---|---|
 | 1 | 2026-06-07 | Création du plan d'implémentation |
 | 2 | 2026-06-07 | Phase 0 complète + Phase 1 API NestJS (tous modules créés : auth, api-keys, proxies/adapters, sessions, billing, admin, account) |
+| 3 | 2026-06-07 | Phase 2 Dashboard SaaS React (Landing, Login, Register, Dashboard, Keys, Billing, Usage, Admin) + Phase 3 App Electron (main/preload, IPC, sessionManager, 4 injectors, Onboarding, Main, BandwidthBar, ScreenshotGrid, electron-builder) |

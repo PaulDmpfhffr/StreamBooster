@@ -1,0 +1,36 @@
+{
+  "appId": "io.streambooster.desktop",
+  "productName": "StreamBooster",
+  "copyright": "© 2026 StreamBooster",
+  "directories": {
+    "output": "release",
+    "buildResources": "resources"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "publish": {
+    "provider": "github",
+    "owner": "streambooster",
+    "repo": "desktop"
+  },
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "resources/icon.ico"
+  },
+  "mac": {
+    "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+    "icon": "resources/icon.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false
+  },
+  "linux": {
+    "target": [{ "target": "AppImage", "arch": ["x64"] }],
+    "icon": "resources/icon.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}
