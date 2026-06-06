@@ -32,7 +32,7 @@ export class AdminController {
       this.prisma.user.count(),
       this.prisma.session.count({ where: { status: 'active' } }),
       this.prisma.bandwidthTransaction.aggregate({
-        where: { type: 'purchase' },
+        where: { type: 'purchase', stripePaymentId: { not: null } },
         _sum: { bytesDelta: true },
       }),
     ]);
