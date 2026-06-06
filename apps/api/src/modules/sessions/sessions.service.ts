@@ -9,6 +9,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProxiesService } from '../proxies/proxies.service';
+import { SessionsGateway } from './sessions.gateway';
 
 const HEARTBEAT_TTL = 90;
 const BITRATE_SOURCE_BYTES_PER_SEC = 5000 * 1024;
@@ -18,6 +19,7 @@ export class SessionsService {
   constructor(
     private prisma: PrismaService,
     private proxies: ProxiesService,
+    private gateway: SessionsGateway,
     @InjectRedis() private redis: Redis,
   ) {}
 
@@ -164,6 +166,7 @@ export class SessionsService {
     });
 
     await this.redis.del(`session:${sessionId}:heartbeat`);
+    this.gateway.broadcastSessionUpdate({ id: sessionId, status: 'ended' });
   }
 
   @Cron('*/30 * * * * *')
