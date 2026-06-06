@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { getRedisToken } from '@nestjs-modules/ioredis';
 import * as bcrypt from 'bcrypt';
 
 const mockPrisma = {
@@ -15,6 +16,7 @@ const mockPrisma = {
 
 const mockJwt = { sign: jest.fn(() => 'token') };
 const mockConfig = { get: jest.fn((key: string) => key) };
+const mockRedis = { exists: jest.fn(() => 0), set: jest.fn() };
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -26,11 +28,14 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: getRedisToken(), useValue: mockRedis },
       ],
     }).compile();
 
     service = module.get(AuthService);
     jest.clearAllMocks();
+    mockRedis.exists.mockResolvedValue(0);
+    mockRedis.set.mockResolvedValue('OK');
   });
 
   describe('register', () => {
@@ -82,6 +87,30 @@ describe('AuthService', () => {
         role: 'user',
       });
       await expect(service.login('user@test.com', 'wrongpassword')).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('refresh', () => {
+    const fakeToken = 'refresh.token.value';
+    const fakeUser = { id: 'uuid-1', email: 'user@test.com', role: 'user', passwordHash: 'hash' };
+
+    it('retourne une nouvelle paire de tokens et blackliste l\'ancien token', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(fakeUser);
+      const result = await service.refresh('uuid-1', fakeToken);
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(mockRedis.set).toHaveBeenCalledTimes(1);
+    });
+
+    it('lève UnauthorizedException si le token est déjà blacklisté (replay attack)', async () => {
+      mockRedis.exists.mockResolvedValue(1);
+      await expect(service.refresh('uuid-1', fakeToken)).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('lève UnauthorizedException si l\'utilisateur n\'existe plus', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.refresh('uuid-gone', fakeToken)).rejects.toThrow(UnauthorizedException);
     });
   });
 });

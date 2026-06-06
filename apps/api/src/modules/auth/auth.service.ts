@@ -5,9 +5,14 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { createHash } from 'crypto';
+import Redis from 'ioredis';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { User } from '@prisma/client';
+
+const REFRESH_TTL = 60 * 60 * 24 * 7; // 7 jours en secondes
 
 @Injectable()
 export class AuthService {
@@ -15,6 +20,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    @InjectRedis() private redis: Redis,
   ) {}
 
   async register(email: string, password: string) {
@@ -39,9 +45,14 @@ export class AuthService {
     return this.buildTokenPair(user);
   }
 
-  async refresh(userId: string) {
+  async refresh(userId: string, oldRefreshToken: string) {
+    const hash = createHash('sha256').update(oldRefreshToken).digest('hex');
+    if (await this.redis.exists(`auth:refresh:blacklist:${hash}`)) {
+      throw new UnauthorizedException('Refresh token already used');
+    }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+    await this.redis.set(`auth:refresh:blacklist:${hash}`, '1', 'EX', REFRESH_TTL);
     return this.buildTokenPair(user);
   }
 
