@@ -64,7 +64,7 @@ export class SessionManager {
             await new Promise((r) => setTimeout(r, SCREENSHOT_INTERVAL_MS));
           }
         };
-        captureLoop();
+        captureLoop().catch(() => {});
       }
 
       contexts.push(ctx);
@@ -83,7 +83,7 @@ export class SessionManager {
     const session = this.activeSessions.get(sessionId);
     if (!session) return;
 
-    clearInterval(session.heartbeatTimer as unknown as number);
+    clearInterval(session.heartbeatTimer);
     for (const ctx of session.contexts) {
       await ctx.close().catch(() => {});
     }
