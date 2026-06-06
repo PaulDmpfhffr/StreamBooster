@@ -33,6 +33,9 @@ export default function AdminUsers() {
       setDelta('');
       setReason('');
     },
+    onError: () => {
+      setAdjusting(null);
+    },
   });
 
   const handleAdjust = (userId: string) => {

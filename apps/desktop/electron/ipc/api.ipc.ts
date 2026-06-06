@@ -29,6 +29,7 @@ export function registerApiIpc() {
     const res = await fetch(`${getApiBase()}/account/me`, {
       headers: { 'x-api-key': key },
     });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   });
 
@@ -56,10 +57,11 @@ export function registerApiIpc() {
   ipcMain.handle('api:session-stop', async (_e, sessionId: string) => {
     const key = getApiKey();
     if (!key) return;
-    await fetch(`${getApiBase()}/sessions/${sessionId}/stop`, {
+    const res = await fetch(`${getApiBase()}/sessions/${sessionId}/stop`, {
       method: 'POST',
       headers: { 'x-api-key': key },
     });
+    if (!res.ok) throw new Error(await res.text());
   });
 
   ipcMain.handle('api:logout', () => {
