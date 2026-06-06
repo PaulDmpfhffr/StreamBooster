@@ -121,6 +121,12 @@ export class AdminController {
     return this.proxies.createProvider(body);
   }
 
+  @Get('providers/:id/health')
+  async checkProviderHealth(@Param('id') id: string) {
+    const healthy = await this.proxies.testProviderHealth(id);
+    return { healthy };
+  }
+
   @Get('sessions')
   getSessions() {
     return this.prisma.session.findMany({

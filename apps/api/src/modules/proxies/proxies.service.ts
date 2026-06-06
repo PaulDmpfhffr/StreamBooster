@@ -7,6 +7,10 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProxyPool, ProxyProvider } from '@prisma/client';
+import { IPRoyalAdapter } from './adapters/iproyal.adapter';
+import { BrightDataAdapter } from './adapters/brightdata.adapter';
+import { WebshareAdapter } from './adapters/webshare.adapter';
+import { ManualAdapter } from './adapters/manual.adapter';
 
 const RESERVED_BYTES_PER_INSTANCE = 500 * 1024 * 1024;
 
@@ -164,5 +168,20 @@ export class ProxiesService {
 
   getReservedBytesForCount(instanceCount: number): number {
     return instanceCount * RESERVED_BYTES_PER_INSTANCE;
+  }
+
+  async testProviderHealth(providerId: string): Promise<boolean> {
+    const provider = await this.prisma.proxyProvider.findUnique({ where: { id: providerId } });
+    if (!provider) throw new NotFoundException('Provider not found');
+
+    const apiKey = provider.apiKeyEncrypted ? this.decrypt(provider.apiKeyEncrypted) : '';
+    let adapter;
+    switch (provider.adapterType) {
+      case 'iproyal': adapter = new IPRoyalAdapter(apiKey, provider.apiEndpoint); break;
+      case 'brightdata': adapter = new BrightDataAdapter(apiKey, provider.apiEndpoint); break;
+      case 'webshare': adapter = new WebshareAdapter(apiKey, provider.apiEndpoint); break;
+      default: adapter = new ManualAdapter();
+    }
+    return adapter.isHealthy();
   }
 }
