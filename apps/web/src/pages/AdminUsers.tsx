@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { formatBytes } from '../lib/utils';
@@ -59,8 +59,8 @@ export default function AdminUsers() {
           </thead>
           <tbody>
             {users.map((u) => (
-              <>
-                <tr key={u.id} className="border-t border-gray-800 hover:bg-gray-800/30 transition-colors">
+              <Fragment key={u.id}>
+                <tr className="border-t border-gray-800 hover:bg-gray-800/30 transition-colors">
                   <td className="px-4 py-3 text-white font-mono text-xs">{u.email}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -82,7 +82,7 @@ export default function AdminUsers() {
                   </td>
                 </tr>
                 {adjusting === u.id && (
-                  <tr key={`${u.id}-adjust`} className="border-t border-brand-500/30 bg-brand-500/5">
+                  <tr className="border-t border-brand-500/30 bg-brand-500/5">
                     <td colSpan={6} className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <input
@@ -117,7 +117,7 @@ export default function AdminUsers() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

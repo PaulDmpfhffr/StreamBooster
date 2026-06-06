@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { formatBytes } from '../lib/utils';
 import { Users, Activity, HardDrive } from 'lucide-react';
@@ -36,18 +37,17 @@ export default function Admin() {
 
       <div className="grid grid-cols-2 gap-4">
         {[
-          { label: 'Utilisateurs', href: '/admin/users' },
-          { label: 'Proxys', href: '/admin/proxies' },
-          { label: 'Fournisseurs', href: '/admin/providers' },
-          { label: 'Sessions live', href: '/admin/sessions' },
+          { label: 'Utilisateurs', to: '/admin/users' },
+          { label: 'Proxys & Fournisseurs', to: '/admin/proxies' },
+          { label: 'Sessions live', to: '/admin/sessions' },
         ].map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
+          <Link
+            key={link.to}
+            to={link.to}
             className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-brand-500 transition-colors text-white font-medium"
           >
             {link.label} →
-          </a>
+          </Link>
         ))}
       </div>
     </div>
