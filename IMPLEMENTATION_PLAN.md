@@ -120,10 +120,10 @@
 - [x] **P4.4** Tests e2e routes critiques (Supertest) — auth, account, billing, api-keys
 - [x] **P4.5** Checklist sécurité intégrée dans le code (CORS, rate limit, HMAC, AES-256, JWT rotation, SHA-256 API keys)
 - [x] **P4.6** Dockerfile API multi-stage optimisé
-- [ ] **P4.7** Deploy Railway (API) + PlanetScale (MySQL) + Upstash (Redis) — action manuelle requise
+- [ ] **P4.7** Deploy Railway (API) + PlanetScale (MySQL) + Upstash (Redis) — voir DEPLOY.md
 - [x] **P4.8** vercel.json configuré (SPA rewrite)
-- [ ] **P4.9** Build Electron signé Windows + Mac — nécessite certificats
-- [ ] **P4.10** GitHub Releases + auto-update — à configurer avec repo GitHub
+- [ ] **P4.9** Build Electron signé Windows + Mac — voir DEPLOY.md section 6
+- [ ] **P4.10** GitHub Releases + auto-update — voir DEPLOY.md section 6
 
 ---
 
