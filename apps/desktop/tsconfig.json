@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "commonjs",
+    "lib": ["ES2021"],
+    "outDir": "dist-electron",
+    "rootDir": "electron",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "paths": {
+      "@streambooster/shared": ["../../packages/shared/src"]
+    }
+  },
+  "include": ["electron/**/*"],
+  "exclude": ["node_modules", "dist", "dist-electron", "renderer"]
+}
