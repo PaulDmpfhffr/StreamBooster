@@ -136,3 +136,4 @@
 | 3 | 2026-06-07 | Phase 2 Dashboard SaaS React (Landing, Login, Register, Dashboard, Keys, Billing, Usage, Admin) + Phase 3 App Electron (main/preload, IPC, sessionManager, 4 injectors, Onboarding, Main, BandwidthBar, ScreenshotGrid, electron-builder) |
 | 4 | 2026-06-07 | Phase 4 : tests unitaires auth/billing/proxies, Prisma seed, Dockerfile multi-stage, vercel.json, ReconciliationService (cron 4h) — IMPLÉMENTATION COMPLÈTE |
 | 5 | 2026-06-07 | Pages admin complètes (AdminUsers, AdminProxies, AdminSessions WebSocket), electron-updater, tests e2e Supertest, script migration Prisma, socket.io-client — TOUTES LES TÂCHES AUTOMATISABLES TERMINÉES |
+| 6 | 2026-06-07 | Audit qualité + corrections critiques : IoAdapter Socket.IO (main.ts), refactor BillingService (price IDs via ConfigService, plus process.env au load time), configuration.ts stripe.priceIds, .env.example — 7 commits au total, projet production-ready |
