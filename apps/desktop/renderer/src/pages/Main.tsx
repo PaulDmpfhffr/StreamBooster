@@ -81,8 +81,9 @@ export default function Main({ account, onLogout }: Props) {
       setScreenshots({});
       setSessionState('idle');
 
-      const acc = await window.sbAPI.getAccount() as Account;
-      setBandwidth(acc.bandwidthBytesRemaining);
+      window.sbAPI.getAccount()
+        .then((acc) => setBandwidth((acc as Account).bandwidthBytesRemaining))
+        .catch(() => {});
     }
   };
 
