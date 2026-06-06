@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum SessionStatus {
+  active
+  ended
+  error
+}
+
+enum ProxyType {
+  residential
+  mobile
+  datacenter
+}
+
+enum ProxyAdapterType {
+  iproyal
+  brightdata
+  webshare
+  manual
+}
+
+enum TransactionType {
+  purchase
+  consumption
+  refund
+}
+
+model User {
+  id                       String   @id @default(uuid())
+  email                    String   @unique
+  passwordHash             String   @map("password_hash")
+  role                     UserRole @default(user)
+  bandwidthBytesRemaining  BigInt   @default(0) @map("bandwidth_bytes_remaining")
+  bandwidthBytesUsedTotal  BigInt   @default(0) @map("bandwidth_bytes_used_total")
+  stripeCustomerId         String?  @map("stripe_customer_id")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  apiKeys               ApiKey[]
+  sessions              Session[]
+  bandwidthTransactions BandwidthTransaction[]
+
+  @@map("users")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  keyHash    String    @map("key_hash")
+  label      String
+  lastUsedAt DateTime? @map("last_used_at")
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@map("api_keys")
+}
+
+model ProxyProvider {
+  id                String           @id @default(uuid())
+  name              String           @unique
+  displayName       String           @map("display_name")
+  apiKeyEncrypted   String?          @db.Text @map("api_key_encrypted")
+  apiEndpoint       String           @map("api_endpoint")
+  adapterType       ProxyAdapterType @map("adapter_type")
+  isActive          Boolean          @default(true) @map("is_active")
+  priority          Int              @default(0)
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  proxies ProxyPool[]
+
+  @@map("proxy_providers")
+}
+
+model ProxyPool {
+  id                    String    @id @default(uuid())
+  providerId            String    @map("provider_id")
+  addressEncrypted      String    @map("address_encrypted")
+  countryCode           String    @map("country_code") @db.VarChar(2)
+  type                  ProxyType
+  isActive              Boolean   @default(true) @map("is_active")
+  providerCredentialId  String?   @map("provider_credential_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  provider       ProxyProvider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  sessionProxies SessionProxy[]
+
+  @@map("proxy_pool")
+}
+
+model Session {
+  id                String        @id @default(uuid())
+  userId            String        @map("user_id")
+  apiKeyId          String        @map("api_key_id")
+  platform          String
+  streamUrl         String        @map("stream_url")
+  instanceCount     Int           @map("instance_count")
+  status            SessionStatus @default(active)
+  startedAt         DateTime      @default(now()) @map("started_at")
+  endedAt           DateTime?     @map("ended_at")
+  bytesEstimated    BigInt        @default(0) @map("bytes_estimated")
+  bytesReconciled   BigInt        @default(0) @map("bytes_reconciled")
+  lastHeartbeatAt   DateTime?     @map("last_heartbeat_at")
+
+  user     User           @relation(fields: [userId], references: [id])
+  apiKey   ApiKey         @relation(fields: [apiKeyId], references: [id])
+  proxies  SessionProxy[]
+
+  @@map("sessions")
+}
+
+model SessionProxy {
+  sessionId     String @map("session_id")
+  proxyId       String @map("proxy_id")
+  instanceIndex Int    @map("instance_index")
+
+  session Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  proxy   ProxyPool @relation(fields: [proxyId], references: [id])
+
+  @@id([sessionId, instanceIndex])
+  @@map("session_proxies")
+}
+
+model BandwidthTransaction {
+  id              String          @id @default(uuid())
+  userId          String          @map("user_id")
+  type            TransactionType
+  bytesDelta      BigInt          @map("bytes_delta")
+  description     String
+  stripePaymentId String?         @map("stripe_payment_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("bandwidth_transactions")
+}
