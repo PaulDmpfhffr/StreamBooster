@@ -31,7 +31,7 @@ export class SessionsService {
     if (!user) throw new ForbiddenException();
 
     const reservedBytes = this.proxies.getReservedBytesForCount(data.instanceCount);
-    if (user.bandwidthBytesRemaining < reservedBytes) {
+    if (user.bandwidthBytesRemaining < BigInt(reservedBytes)) {
       throw new BadRequestException('Insufficient bandwidth balance');
     }
 
