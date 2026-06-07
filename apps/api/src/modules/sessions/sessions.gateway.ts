@@ -3,8 +3,8 @@ import {
   WebSocketServer,
   SubscribeMessage,
   OnGatewayConnection,
-  UseGuards,
 } from '@nestjs/websockets';
+import { UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';

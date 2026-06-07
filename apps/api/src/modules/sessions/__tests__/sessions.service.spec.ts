@@ -4,14 +4,14 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProxiesService } from '../../proxies/proxies.service';
 import { SessionsGateway } from '../sessions.gateway';
-import { getRedisToken } from '@nestjs-modules/ioredis';
+import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   session: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn(), create: jest.fn() },
   bandwidthTransaction: { create: jest.fn() },
   sessionProxy: { createMany: jest.fn() },
-  $transaction: jest.fn((fn: Function) => fn(mockPrisma)),
+  $transaction: jest.fn(),
 };
 
 const mockProxies = {
@@ -22,7 +22,7 @@ const mockProxies = {
 };
 
 const mockGateway = { broadcastSessionUpdate: jest.fn() };
-const mockRedis = { set: jest.fn(), del: jest.fn(), exists: jest.fn(() => 0) };
+const mockRedis = { set: jest.fn(), del: jest.fn(), exists: jest.fn() };
 
 describe('SessionsService', () => {
   let service: SessionsService;
@@ -34,13 +34,13 @@ describe('SessionsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProxiesService, useValue: mockProxies },
         { provide: SessionsGateway, useValue: mockGateway },
-        { provide: getRedisToken(), useValue: mockRedis },
+        { provide: getRedisConnectionToken(), useValue: mockRedis },
       ],
     }).compile();
 
     service = module.get(SessionsService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((fn: Function) => fn(mockPrisma));
+    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
     mockRedis.set.mockResolvedValue('OK');
     mockRedis.del.mockResolvedValue(1);
   });

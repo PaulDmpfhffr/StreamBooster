@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { getRedisToken } from '@nestjs-modules/ioredis';
+import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import * as bcrypt from 'bcrypt';
 
 const mockPrisma = {
@@ -15,8 +15,8 @@ const mockPrisma = {
 };
 
 const mockJwt = { sign: jest.fn(() => 'token') };
-const mockConfig = { get: jest.fn((key: string) => key) };
-const mockRedis = { exists: jest.fn(() => 0), set: jest.fn() };
+const mockConfig = { get: jest.fn((key) => key) };
+const mockRedis = { exists: jest.fn(), set: jest.fn() };
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -28,7 +28,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
-        { provide: getRedisToken(), useValue: mockRedis },
+        { provide: getRedisConnectionToken(), useValue: mockRedis },
       ],
     }).compile();
 
