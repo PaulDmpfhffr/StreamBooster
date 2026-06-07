@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const UNLIMITED_BYTES = 10 * 1024 * 1024 * 1024 * 1024; // 10 To créditées par cycle de facturation
@@ -129,12 +130,15 @@ export class BillingService {
       // including the first one). Crediting here would double-count the initial subscription.
       if (def.isSubscription) return;
 
+      // Idempotency: session.id is always non-null; prevents double-credit on Stripe retries.
+      const existing = await this.prisma.bandwidthTransaction.findFirst({
+        where: { stripePaymentId: session.id },
+      });
+      if (existing) return;
+
       const bytesToCredit = def.bytes ?? UNLIMITED_BYTES;
 
-      // payment_intent is null for subscription mode; fall back to subscription ID
-      const stripeRef = (session.payment_intent ?? session.subscription) as string | null;
-
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.user.update({
           where: { id: userId },
           data: { bandwidthBytesRemaining: { increment: bytesToCredit } },
@@ -145,7 +149,7 @@ export class BillingService {
             type: 'purchase',
             bytesDelta: bytesToCredit,
             description: `Achat ${def.name}`,
-            stripePaymentId: stripeRef,
+            stripePaymentId: session.id,
           },
         });
       });
@@ -169,7 +173,13 @@ export class BillingService {
       );
       if (!hasUnlimitedLine) return;
 
-      await this.prisma.$transaction(async (tx) => {
+      // Idempotency: invoice.id is always non-null; prevents double-credit on Stripe retries.
+      const existing = await this.prisma.bandwidthTransaction.findFirst({
+        where: { stripePaymentId: invoice.id },
+      });
+      if (existing) return;
+
+      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.user.update({
           where: { id: user.id },
           data: { bandwidthBytesRemaining: { increment: UNLIMITED_BYTES } },
@@ -180,7 +190,7 @@ export class BillingService {
             type: 'purchase',
             bytesDelta: UNLIMITED_BYTES,
             description: 'Renouvellement Unlimited',
-            stripePaymentId: invoice.payment_intent as string | null,
+            stripePaymentId: invoice.id,
           },
         });
       });

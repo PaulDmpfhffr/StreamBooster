@@ -7,10 +7,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
   },
-  bandwidthTransaction: { create: jest.fn() },
-  $transaction: jest.fn((fn: Function) => fn(mockPrisma)),
+  bandwidthTransaction: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+  },
+  $transaction: jest.fn(),
 };
 
 const mockStripe = {
@@ -23,9 +27,9 @@ const mockStripe = {
 
 const mockConfig = { get: jest.fn(() => 'test_value') };
 
-jest.mock('stripe', () =>
-  jest.fn(() => mockStripe),
-);
+jest.mock('stripe', () => ({
+  default: jest.fn(() => mockStripe),
+}));
 
 describe('BillingService', () => {
   let service: BillingService;
@@ -41,6 +45,9 @@ describe('BillingService', () => {
 
     service = module.get(BillingService);
     jest.clearAllMocks();
+    // Rétablir après clearAllMocks car $transaction est utilisé dans chaque test
+    mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma));
+    mockPrisma.bandwidthTransaction.findFirst.mockResolvedValue(null);
   });
 
   describe('getProducts', () => {
@@ -80,6 +87,7 @@ describe('BillingService', () => {
       type: 'checkout.session.completed',
       data: {
         object: {
+          id: 'cs_test',
           metadata: { userId: 'user-1', productId },
           payment_intent: 'pi_test',
           subscription: null,
@@ -127,11 +135,17 @@ describe('BillingService', () => {
       mockStripe.webhooks.constructEvent.mockImplementation(() => { throw new Error('Bad sig'); });
       await expect(service.handleWebhook(Buffer.from('{}'), 'invalid')).rejects.toThrow('Invalid Stripe signature');
     });
+
+    it('idempotence — ne crédite pas si stripePaymentId déjà présent (retry Stripe)', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue(makeEvent('starter'));
+      (mockPrisma.bandwidthTransaction.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'existing' });
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleWebhook — invoice.payment_succeeded (renouvellement abonnement)', () => {
     beforeEach(() => {
-      mockPrisma.user.findFirst = jest.fn();
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
     });
@@ -141,6 +155,7 @@ describe('BillingService', () => {
         type: 'invoice.payment_succeeded',
         data: {
           object: {
+            id: 'in_renewal',
             subscription: 'sub_test',
             customer: 'cus_test',
             payment_intent: 'pi_renewal',
@@ -165,6 +180,24 @@ describe('BillingService', () => {
         type: 'invoice.payment_succeeded',
         data: { object: { subscription: null, customer: 'cus_test', lines: { data: [] } } },
       });
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('idempotence — ne crédite pas si invoice déjà traitée (retry Stripe)', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue({
+        type: 'invoice.payment_succeeded',
+        data: {
+          object: {
+            id: 'in_renewal',
+            subscription: 'sub_test',
+            customer: 'cus_test',
+            lines: { data: [{ price: { id: 'price_unlimited' } }] },
+          },
+        },
+      });
+      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'user-1' });
+      (mockPrisma.bandwidthTransaction.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'existing' });
       await service.handleWebhook(Buffer.from('{}'), 'sig');
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
