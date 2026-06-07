@@ -56,20 +56,30 @@ export class ProxiesService {
       orderBy: { priority: 'desc' },
     });
 
-    const available: Array<{ proxy: ProxyPool; provider: ProxyProvider }> = [];
-    for (const provider of providers) {
-      const proxies = await this.prisma.proxyPool.findMany({
-        where: {
-          providerId: provider.id,
-          isActive: true,
-          ...(preferCountry ? { countryCode: preferCountry } : {}),
-        },
-      });
-      for (const proxy of proxies) {
-        if (!usedProxyIds.has(proxy.id)) {
-          available.push({ proxy, provider });
+    const buildAvailable = async (countryFilter?: string) => {
+      const pool: Array<{ proxy: ProxyPool; provider: ProxyProvider }> = [];
+      for (const provider of providers) {
+        const proxies = await this.prisma.proxyPool.findMany({
+          where: {
+            providerId: provider.id,
+            isActive: true,
+            ...(countryFilter ? { countryCode: countryFilter } : {}),
+          },
+        });
+        for (const proxy of proxies) {
+          if (!usedProxyIds.has(proxy.id)) {
+            pool.push({ proxy, provider });
+          }
         }
       }
+      return pool;
+    };
+
+    // preferProxyCountry is a soft preference: try filtered first, fall back to all
+    // countries if not enough matching proxies are available.
+    let available = preferCountry ? await buildAvailable(preferCountry) : [];
+    if (available.length < instanceCount) {
+      available = await buildAvailable();
     }
 
     if (available.length < instanceCount) {

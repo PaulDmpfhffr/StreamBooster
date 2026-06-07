@@ -84,6 +84,24 @@ describe('ProxiesService', () => {
 
       await expect(service.allocateProxies(1)).rejects.toThrow(BadRequestException);
     });
+
+    it('repli sans filtre pays si preferProxyCountry a moins de proxys que nécessaire', async () => {
+      mockPrisma.proxyProvider.findMany.mockResolvedValue([{ id: 'p1', priority: 1 }]);
+      // 1er appel : filtré par pays FR → 0 proxys
+      // 2ème appel : sans filtre → 2 proxys disponibles
+      mockPrisma.proxyPool.findMany
+        .mockResolvedValueOnce([]) // filtre FR — aucun résultat
+        .mockResolvedValueOnce([   // sans filtre — 2 proxys US
+          { id: 'proxy-us-1', addressEncrypted: service.encrypt('socks5://1.1.1.1:1080'), providerId: 'p1' },
+          { id: 'proxy-us-2', addressEncrypted: service.encrypt('socks5://2.2.2.2:1080'), providerId: 'p1' },
+        ]);
+
+      const allocated = await service.allocateProxies(1, 'FR');
+
+      expect(allocated).toHaveLength(1);
+      // Doit avoir utilisé les proxys US (fallback)
+      expect(allocated[0].address).toBe('socks5://1.1.1.1:1080');
+    });
   });
 
   describe('getReservedBytesForCount', () => {
