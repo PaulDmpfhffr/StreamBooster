@@ -53,6 +53,10 @@ export class SessionManager {
         contexts.push(ctx); // push early so cleanup catches it on error
 
         const page = await ctx.newPage();
+        // addInitScript must run BEFORE goto — it only applies to the next navigation.
+        await page.addInitScript(() => {
+          Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        });
         await page.goto(config.streamUrl, { waitUntil: 'domcontentloaded' });
         await injector(page);
 

@@ -1,10 +1,6 @@
 import { Page } from 'playwright-core';
 
 export async function injectYoutube(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => false });
-  });
-
   await page.waitForLoadState('domcontentloaded');
 
   await page.evaluate(() => {
