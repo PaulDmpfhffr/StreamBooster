@@ -89,7 +89,7 @@ export default function Main({ account, onLogout }: Props) {
 
   const detectPlatformName = (url: string): string => {
     if (url.includes('twitch.tv')) return 'twitch';
-    if (url.includes('youtube.com')) return 'youtube';
+    if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
     if (url.includes('kick.com')) return 'kick';
     if (url.includes('tiktok.com')) return 'tiktok';
     return 'twitch';
