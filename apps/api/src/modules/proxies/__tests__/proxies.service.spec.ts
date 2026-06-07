@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ProxiesService } from '../proxies.service';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const mockPrisma = {
@@ -90,6 +90,27 @@ describe('ProxiesService', () => {
     it('réserve 500 Mo par instance', () => {
       expect(service.getReservedBytesForCount(1)).toBe(500 * 1024 * 1024);
       expect(service.getReservedBytesForCount(4)).toBe(4 * 500 * 1024 * 1024);
+    });
+  });
+
+  describe('deleteProxy', () => {
+    it('lève NotFoundException si le proxy n\'existe pas', async () => {
+      mockPrisma.proxyPool.findUnique.mockResolvedValue(null);
+      await expect(service.deleteProxy('unknown-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('supprime le proxy si existant et non utilisé', async () => {
+      mockPrisma.proxyPool.findUnique.mockResolvedValue({ id: 'proxy-1' });
+      mockPrisma.proxyPool.delete.mockResolvedValue({});
+      await service.deleteProxy('proxy-1');
+      expect(mockPrisma.proxyPool.delete).toHaveBeenCalledWith({ where: { id: 'proxy-1' } });
+    });
+
+    it('lève ConflictException (P2003) si le proxy est utilisé par une session active', async () => {
+      mockPrisma.proxyPool.findUnique.mockResolvedValue({ id: 'proxy-1' });
+      const p2003 = Object.assign(new Error('FK constraint'), { code: 'P2003' });
+      mockPrisma.proxyPool.delete.mockRejectedValue(p2003);
+      await expect(service.deleteProxy('proxy-1')).rejects.toThrow(ConflictException);
     });
   });
 });
