@@ -9,7 +9,8 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { IsNumber, IsNotEmpty, IsString, IsNotIn } from 'class-validator';
+import { IsNumber, IsNotEmpty, IsString, IsNotIn, IsIn, Length, IsInt, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -25,6 +26,51 @@ class AdjustBandwidthDto {
   @IsString()
   @IsNotEmpty()
   reason!: string;
+}
+
+class CreateProxyDto {
+  @IsString()
+  @IsNotEmpty()
+  providerId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  address!: string;
+
+  @IsString()
+  @Length(2, 2)
+  countryCode!: string;
+
+  @IsIn(['residential', 'mobile', 'datacenter'])
+  type!: 'residential' | 'mobile' | 'datacenter';
+
+  @IsOptional()
+  @IsString()
+  providerCredentialId?: string;
+}
+
+class CreateProviderDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  displayName!: string;
+
+  @IsIn(['iproyal', 'brightdata', 'webshare', 'manual'])
+  adapterType!: 'iproyal' | 'brightdata' | 'webshare' | 'manual';
+
+  @IsString()
+  apiKey!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  apiEndpoint!: string;
+
+  @IsInt()
+  @Type(() => Number)
+  priority!: number;
 }
 
 @Controller('api/v1/admin')
@@ -96,15 +142,7 @@ export class AdminController {
   }
 
   @Post('proxies')
-  createProxy(
-    @Body() body: {
-      providerId: string;
-      address: string;
-      countryCode: string;
-      type: 'residential' | 'mobile' | 'datacenter';
-      providerCredentialId?: string;
-    },
-  ) {
+  createProxy(@Body() body: CreateProxyDto) {
     return this.proxies.createProxy(body);
   }
 
@@ -119,16 +157,7 @@ export class AdminController {
   }
 
   @Post('providers')
-  createProvider(
-    @Body() body: {
-      name: string;
-      displayName: string;
-      adapterType: 'iproyal' | 'brightdata' | 'webshare' | 'manual';
-      apiKey: string;
-      apiEndpoint: string;
-      priority: number;
-    },
-  ) {
+  createProvider(@Body() body: CreateProviderDto) {
     return this.proxies.createProvider(body);
   }
 
