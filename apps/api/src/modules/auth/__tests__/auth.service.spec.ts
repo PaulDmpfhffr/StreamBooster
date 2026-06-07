@@ -57,6 +57,15 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 'existing' });
       await expect(service.register('existing@test.com', 'pass')).rejects.toThrow(ConflictException);
     });
+
+    it('lève ConflictException sur P2002 (race condition : deux inscriptions simultanées avec le même email)', async () => {
+      // findUnique passe (email libre au moment du check), mais create échoue car
+      // un appel concurrent a inséré l'email entre le check et l'insert.
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      const p2002 = Object.assign(new Error('Unique constraint'), { code: 'P2002' });
+      mockPrisma.user.create.mockRejectedValueOnce(p2002);
+      await expect(service.register('race@test.com', 'password123')).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('login', () => {
