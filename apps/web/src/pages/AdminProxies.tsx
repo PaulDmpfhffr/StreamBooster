@@ -41,6 +41,7 @@ export default function AdminProxies() {
   const deleteProxy = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/proxies/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-proxies'] }),
+    onError: () => { alert('Impossible de supprimer ce proxy (peut-être utilisé par une session active).'); },
   });
 
   const [newProxy, setNewProxy] = useState({ providerId: '', address: '', countryCode: 'FR', type: 'residential' });

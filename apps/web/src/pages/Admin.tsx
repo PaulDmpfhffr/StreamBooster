@@ -35,7 +35,7 @@ export default function Admin() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Utilisateurs', to: '/admin/users' },
           { label: 'Proxys & Fournisseurs', to: '/admin/proxies' },
