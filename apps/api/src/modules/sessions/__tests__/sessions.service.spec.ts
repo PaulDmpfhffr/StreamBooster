@@ -105,6 +105,20 @@ describe('SessionsService', () => {
     });
   });
 
+  describe('stop', () => {
+    it('lève NotFoundException si la session n\'existe pas', async () => {
+      mockPrisma.session.findFirst.mockResolvedValue(null);
+      await expect(service.stop('sess-1', 'user-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('retourne ok:true sans finaliser si la session est déjà terminée (idempotence)', async () => {
+      mockPrisma.session.findFirst.mockResolvedValue({ id: 'sess-1', userId: 'user-1', status: 'ended' });
+      const result = await service.stop('sess-1', 'user-1');
+      expect(result).toEqual({ ok: true });
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
   describe('finalizeSession', () => {
     const baseSession = {
       id: 'sess-1',

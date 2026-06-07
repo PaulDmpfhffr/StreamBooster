@@ -118,9 +118,13 @@ export class SessionsService {
 
   async stop(sessionId: string, userId: string) {
     const session = await this.prisma.session.findFirst({
-      where: { id: sessionId, userId, status: 'active' },
+      where: { id: sessionId, userId },
     });
     if (!session) throw new NotFoundException('Session not found');
+
+    // Idempotent: if already ended (e.g. expired by the cron while client was
+    // still running), silently return success instead of propagating a 404.
+    if (session.status !== 'active') return { ok: true };
 
     await this.finalizeSession(sessionId);
     return { ok: true };
