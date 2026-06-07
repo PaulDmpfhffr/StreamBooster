@@ -10,12 +10,25 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsUrl } from 'class-validator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { BillingService } from './billing.service';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '@prisma/client';
+
+class CreateCheckoutDto {
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsUrl({ require_tld: false })
+  successUrl!: string;
+
+  @IsUrl({ require_tld: false })
+  cancelUrl!: string;
+}
 
 @Controller('api/v1/billing')
 export class BillingController {
@@ -30,7 +43,7 @@ export class BillingController {
   @UseGuards(JwtGuard)
   createCheckout(
     @CurrentUser() user: User,
-    @Body() body: { productId: string; successUrl: string; cancelUrl: string },
+    @Body() body: CreateCheckoutDto,
   ) {
     return this.billingService.createCheckout(
       user.id,

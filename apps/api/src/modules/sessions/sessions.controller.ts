@@ -9,12 +9,35 @@ import {
   HttpStatus,
   Req,
 } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, Length } from 'class-validator';
+import { Type } from 'class-transformer';
 import { SessionsService } from './sessions.service';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User, ApiKey } from '@prisma/client';
 import { Request } from 'express';
+
+class StartSessionDto {
+  @IsString()
+  @IsNotEmpty()
+  platform!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  streamUrl!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  @Type(() => Number)
+  instanceCount!: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  preferProxyCountry?: string;
+}
 
 interface RequestWithApiKey extends Request {
   user: User;
@@ -29,12 +52,7 @@ export class SessionsController {
   @UseGuards(ApiKeyGuard)
   start(
     @Req() req: RequestWithApiKey,
-    @Body() body: {
-      platform: string;
-      streamUrl: string;
-      instanceCount: number;
-      preferProxyCountry?: string;
-    },
+    @Body() body: StartSessionDto,
   ) {
     return this.sessionsService.start(req.user.id, req.apiKey.id, body);
   }

@@ -9,12 +9,23 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { IsNumber, IsNotEmpty, IsString, IsNotIn } from 'class-validator';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuditLogInterceptor } from '../../common/interceptors/audit-log.interceptor';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProxiesService } from '../proxies/proxies.service';
+
+class AdjustBandwidthDto {
+  @IsNumber()
+  @IsNotIn([0], { message: 'bytesDelta must be non-zero' })
+  bytesDelta!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+}
 
 @Controller('api/v1/admin')
 @UseGuards(JwtGuard, RolesGuard)
@@ -60,7 +71,7 @@ export class AdminController {
   @Patch('users/:id/bandwidth')
   async adjustBandwidth(
     @Param('id') userId: string,
-    @Body() body: { bytesDelta: number; reason: string },
+    @Body() body: AdjustBandwidthDto,
   ) {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
