@@ -19,6 +19,10 @@ async function bootstrap() {
       'ENCRYPTION_KEY',
       'STRIPE_SECRET_KEY',
       'STRIPE_WEBHOOK_SECRET',
+      'STRIPE_PRICE_STARTER',
+      'STRIPE_PRICE_STANDARD',
+      'STRIPE_PRICE_PRO',
+      'STRIPE_PRICE_UNLIMITED',
       'DATABASE_URL',
     ];
     for (const key of required) {

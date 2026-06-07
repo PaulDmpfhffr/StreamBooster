@@ -67,23 +67,27 @@ export default function Keys() {
 
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Créer une nouvelle clé</h2>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            placeholder="Nom du device (ex: Mon PC bureau)"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-brand-500"
-          />
-          <button
-            onClick={() => create.mutate(label || 'Mon device')}
-            disabled={create.isPending}
-            className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            <Plus size={16} />
-            Créer
-          </button>
-        </div>
+        {newKey ? (
+          <p className="text-sm text-gray-500">Copiez la clé affichée ci-dessus avant d'en créer une nouvelle.</p>
+        ) : (
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="Nom du device (ex: Mon PC bureau)"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-brand-500"
+            />
+            <button
+              onClick={() => create.mutate(label || 'Mon device')}
+              disabled={create.isPending}
+              className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Plus size={16} />
+              Créer
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
