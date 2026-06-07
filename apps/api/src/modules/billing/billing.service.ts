@@ -148,5 +148,40 @@ export class BillingService {
 
       this.logger.log(`Credited ${bytesToCredit} bytes to user ${userId}`);
     }
+
+    // Monthly subscription renewal — checkout.session.completed fires only once (initial).
+    // Subsequent billing cycles emit invoice.payment_succeeded; we credit UNLIMITED_BYTES again.
+    if (event.type === 'invoice.payment_succeeded') {
+      const invoice = event.data.object as Stripe.Invoice;
+      if (!invoice.subscription) return; // ignore one-time payment invoices
+
+      const stripeCustomerId = invoice.customer as string;
+      const user = await this.prisma.user.findFirst({ where: { stripeCustomerId } });
+      if (!user) return;
+
+      const unlimitedPriceId = this.getStripePriceId('unlimited');
+      const hasUnlimitedLine = invoice.lines.data.some(
+        (line) => (line.price as Stripe.Price | null)?.id === unlimitedPriceId,
+      );
+      if (!hasUnlimitedLine) return;
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { bandwidthBytesRemaining: { increment: UNLIMITED_BYTES } },
+        });
+        await tx.bandwidthTransaction.create({
+          data: {
+            userId: user.id,
+            type: 'purchase',
+            bytesDelta: UNLIMITED_BYTES,
+            description: 'Renouvellement Unlimited',
+            stripePaymentId: invoice.payment_intent as string | null,
+          },
+        });
+      });
+
+      this.logger.log(`Subscription renewal: credited ${UNLIMITED_BYTES} bytes to user ${user.id}`);
+    }
   }
 }

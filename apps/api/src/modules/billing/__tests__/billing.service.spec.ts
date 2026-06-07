@@ -128,4 +128,44 @@ describe('BillingService', () => {
       await expect(service.handleWebhook(Buffer.from('{}'), 'invalid')).rejects.toThrow('Invalid Stripe signature');
     });
   });
+
+  describe('handleWebhook — invoice.payment_succeeded (renouvellement abonnement)', () => {
+    beforeEach(() => {
+      mockPrisma.user.findFirst = jest.fn();
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
+    });
+
+    it('crédite 10 To sur renouvellement Unlimited', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue({
+        type: 'invoice.payment_succeeded',
+        data: {
+          object: {
+            subscription: 'sub_test',
+            customer: 'cus_test',
+            payment_intent: 'pi_renewal',
+            lines: {
+              data: [{ price: { id: 'test_value' } }], // test_value = mockConfig.get() retour par défaut
+            },
+          },
+        },
+      });
+      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'user-1' });
+
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+
+      const call = mockPrisma.user.update.mock.calls[0][0];
+      const TEN_TB = 10 * 1024 * 1024 * 1024 * 1024;
+      expect(call.data.bandwidthBytesRemaining.increment).toBe(TEN_TB);
+    });
+
+    it('ignore les invoices sans subscription (one-time)', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue({
+        type: 'invoice.payment_succeeded',
+        data: { object: { subscription: null, customer: 'cus_test', lines: { data: [] } } },
+      });
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+  });
 });
