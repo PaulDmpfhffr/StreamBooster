@@ -15,7 +15,7 @@ declare global {
         bandwidthRemainingBytes: number;
       }>;
       apiSessionStop: (sessionId: string) => Promise<void>;
-      apiHeartbeat: (sessionId: string) => Promise<void>;
+      apiHeartbeat: (sessionId: string) => Promise<{ sessionExpired?: boolean } | undefined>;
       on: (channel: string, cb: (...args: unknown[]) => void) => void;
       off: (channel: string, cb: (...args: unknown[]) => void) => void;
     };
