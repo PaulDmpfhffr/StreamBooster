@@ -26,6 +26,12 @@ export function AuthLayout() {
   );
 }
 
+export function AdminLayout() {
+  const { user } = useAuthStore();
+  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+}
+
 function Sidebar() {
   const { pathname } = useLocation();
   const { user, logout } = useAuthStore();

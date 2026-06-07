@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthLayout } from './components/Layout';
+import { AuthLayout, AdminLayout } from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -24,10 +24,12 @@ export default function App() {
         <Route path="/keys" element={<Keys />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/usage" element={<Usage />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/proxies" element={<AdminProxies />} />
-        <Route path="/admin/sessions" element={<AdminSessions />} />
+        <Route element={<AdminLayout />}>
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/proxies" element={<AdminProxies />} />
+          <Route path="/admin/sessions" element={<AdminSessions />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
