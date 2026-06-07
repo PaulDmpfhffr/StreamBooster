@@ -7,7 +7,7 @@ import { SessionsGateway } from '../sessions.gateway';
 import { getRedisToken } from '@nestjs-modules/ioredis';
 
 const mockPrisma = {
-  user: { findUnique: jest.fn() },
+  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   session: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), create: jest.fn() },
   bandwidthTransaction: { create: jest.fn() },
   sessionProxy: { createMany: jest.fn() },
@@ -65,7 +65,7 @@ describe('SessionsService', () => {
       mockPrisma.user.findUnique
         .mockResolvedValueOnce({ id: 'user-1', bandwidthBytesRemaining: BigInt(2 * 1024 * 1024 * 1024) })
         .mockResolvedValueOnce({ bandwidthBytesRemaining: BigInt(1.5 * 1024 * 1024 * 1024) });
-      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 }); // solde suffisant
       mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
       mockPrisma.session.create.mockResolvedValue({ id: 'sess-1' });
       mockPrisma.sessionProxy.createMany.mockResolvedValue({});
@@ -75,6 +75,17 @@ describe('SessionsService', () => {
       expect(result.sessionId).toBe('sess-1');
       expect(result.proxies).toHaveLength(1);
       expect(mockRedis.set).toHaveBeenCalledWith('session:sess-1:heartbeat', '1', 'EX', 90);
+    });
+
+    it('lève BadRequestException si le solde passe à zéro entre le check et la transaction (race condition)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        bandwidthBytesRemaining: BigInt(2 * 1024 * 1024 * 1024),
+      });
+      // updateMany renvoie count=0 : un autre appel concurrent a déjà préempté le solde
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.start('user-1', 'key-1', sessionData)).rejects.toThrow(BadRequestException);
     });
   });
 

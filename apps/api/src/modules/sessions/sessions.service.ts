@@ -33,6 +33,7 @@ export class SessionsService {
     if (!user) throw new ForbiddenException();
 
     const reservedBytes = this.proxies.getReservedBytesForCount(data.instanceCount);
+    // Optimistic early check (not the authoritative check — see atomic updateMany below)
     if (user.bandwidthBytesRemaining < BigInt(reservedBytes)) {
       throw new BadRequestException('Insufficient bandwidth balance');
     }
@@ -43,10 +44,15 @@ export class SessionsService {
     );
 
     const session = await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: userId },
+      // Atomic conditional decrement — prevents TOCTOU race when two concurrent
+      // start requests both pass the optimistic check before either decrements.
+      const deducted = await tx.user.updateMany({
+        where: { id: userId, bandwidthBytesRemaining: { gte: reservedBytes } },
         data: { bandwidthBytesRemaining: { decrement: reservedBytes } },
       });
+      if (deducted.count === 0) {
+        throw new BadRequestException('Insufficient bandwidth balance');
+      }
 
       await tx.bandwidthTransaction.create({
         data: {
