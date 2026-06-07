@@ -76,12 +76,14 @@ describe('BillingService', () => {
   });
 
   describe('handleWebhook', () => {
-    const makeEvent = (productId: string) => ({
+    const makeEvent = (productId: string, overrides: Record<string, unknown> = {}) => ({
       type: 'checkout.session.completed',
       data: {
         object: {
           metadata: { userId: 'user-1', productId },
           payment_intent: 'pi_test',
+          subscription: null,
+          ...overrides,
         },
       },
     });
@@ -104,6 +106,15 @@ describe('BillingService', () => {
       const call = mockPrisma.user.update.mock.calls[0][0];
       const TEN_TB = 10 * 1024 * 1024 * 1024 * 1024;
       expect(call.data.bandwidthBytesRemaining.increment).toBe(TEN_TB);
+    });
+
+    it('utilise subscription ID comme stripePaymentId pour le plan unlimited (payment_intent null)', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue(
+        makeEvent('unlimited', { payment_intent: null, subscription: 'sub_test123' }),
+      );
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      const txCall = mockPrisma.bandwidthTransaction.create.mock.calls[0][0];
+      expect(txCall.data.stripePaymentId).toBe('sub_test123');
     });
 
     it('ignore les events inconnus silencieusement', async () => {

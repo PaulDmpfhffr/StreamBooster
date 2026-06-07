@@ -127,6 +127,9 @@ export class BillingService {
 
       const bytesToCredit = def.bytes ?? UNLIMITED_BYTES;
 
+      // payment_intent is null for subscription mode; fall back to subscription ID
+      const stripeRef = (session.payment_intent ?? session.subscription) as string | null;
+
       await this.prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: userId },
@@ -138,12 +141,12 @@ export class BillingService {
             type: 'purchase',
             bytesDelta: bytesToCredit,
             description: `Achat ${def.name}`,
-            stripePaymentId: session.payment_intent as string,
+            stripePaymentId: stripeRef,
           },
         });
       });
 
-      this.logger.log(`Credited ${def.bytes} bytes to user ${userId}`);
+      this.logger.log(`Credited ${bytesToCredit} bytes to user ${userId}`);
     }
   }
 }

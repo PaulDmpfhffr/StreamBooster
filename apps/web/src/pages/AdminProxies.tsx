@@ -51,11 +51,13 @@ export default function AdminProxies() {
   const addProxy = useMutation({
     mutationFn: () => api.post('/admin/proxies', newProxy),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-proxies'] }); setShowAddProxy(false); },
+    onError: () => { setShowAddProxy(true); },
   });
 
   const addProvider = useMutation({
     mutationFn: () => api.post('/admin/providers', newProvider),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-providers'] }); setShowAddProvider(false); },
+    onError: () => { setShowAddProvider(true); },
   });
 
   return (
@@ -119,8 +121,8 @@ export default function AdminProxies() {
                           onClick={async () => {
                             setHealthStatus((prev) => ({ ...prev, [p.id]: null }));
                             try {
-                              await api.get(`/admin/providers/${p.id}/health`);
-                              setHealthStatus((prev) => ({ ...prev, [p.id]: true }));
+                              const res = await api.get<{ healthy: boolean }>(`/admin/providers/${p.id}/health`);
+                              setHealthStatus((prev) => ({ ...prev, [p.id]: res.data.healthy }));
                             } catch {
                               setHealthStatus((prev) => ({ ...prev, [p.id]: false }));
                             }

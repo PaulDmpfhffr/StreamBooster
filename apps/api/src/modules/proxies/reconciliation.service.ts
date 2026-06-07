@@ -28,7 +28,13 @@ export class ReconciliationService {
     });
 
     for (const provider of providers) {
-      const adapter = this.buildAdapter(provider);
+      let adapter: IProxyProviderAdapter | null;
+      try {
+        adapter = this.buildAdapter(provider);
+      } catch (e) {
+        this.logger.error(`Impossible de créer l'adaptateur pour ${provider.name}`, e);
+        continue;
+      }
       if (!adapter) continue;
 
       const sessions = await this.prisma.session.findMany({
