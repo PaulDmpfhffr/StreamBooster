@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
@@ -133,7 +134,15 @@ export class ProxiesService {
   async deleteProxy(id: string) {
     const proxy = await this.prisma.proxyPool.findUnique({ where: { id } });
     if (!proxy) throw new NotFoundException('Proxy not found');
-    await this.prisma.proxyPool.delete({ where: { id } });
+    try {
+      await this.prisma.proxyPool.delete({ where: { id } });
+    } catch (e: unknown) {
+      // P2003 = foreign key constraint (proxy used by an active session)
+      if ((e as { code?: string }).code === 'P2003') {
+        throw new ConflictException('Proxy is in use by an active session');
+      }
+      throw e;
+    }
   }
 
   async createProvider(data: {

@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -28,11 +29,18 @@ export class AuthService {
     if (existing) throw new ConflictException('Email already registered');
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await this.prisma.user.create({
-      data: { email, passwordHash },
-    });
-
-    return this.buildTokenPair(user);
+    try {
+      const user = await this.prisma.user.create({
+        data: { email, passwordHash },
+      });
+      return this.buildTokenPair(user);
+    } catch (e: unknown) {
+      // P2002 = unique constraint violation (race condition: concurrent registrations)
+      if ((e as { code?: string }).code === 'P2002') {
+        throw new ConflictException('Email already registered');
+      }
+      throw new InternalServerErrorException();
+    }
   }
 
   async login(email: string, password: string) {
