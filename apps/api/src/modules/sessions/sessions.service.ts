@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -16,6 +17,8 @@ const BITRATE_SOURCE_BYTES_PER_SEC = 5000 * 1024;
 
 @Injectable()
 export class SessionsService {
+  private readonly logger = new Logger(SessionsService.name);
+
   constructor(
     private prisma: PrismaService,
     private proxies: ProxiesService,
@@ -195,7 +198,9 @@ export class SessionsService {
     });
 
     for (const { id } of deadSessions) {
-      await this.finalizeSession(id);
+      await this.finalizeSession(id).catch((err) => {
+        this.logger.error(`Échec finalisation session expirée ${id}`, err);
+      });
     }
   }
 }
