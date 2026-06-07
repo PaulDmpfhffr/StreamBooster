@@ -9,10 +9,18 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiKeysService } from './api-keys.service';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '@prisma/client';
+
+class CreateApiKeyDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  label?: string;
+}
 
 @Controller('api/v1/keys')
 @UseGuards(JwtGuard)
@@ -25,8 +33,8 @@ export class ApiKeysController {
   }
 
   @Post()
-  create(@CurrentUser() user: User, @Body('label') label: string) {
-    return this.apiKeysService.create(user.id, label ?? 'My Device');
+  create(@CurrentUser() user: User, @Body() dto: CreateApiKeyDto) {
+    return this.apiKeysService.create(user.id, dto.label ?? 'My Device');
   }
 
   @Delete(':id')
