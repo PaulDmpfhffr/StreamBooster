@@ -39,6 +39,7 @@ apps/api/prisma/migrations/
 
 # Electron
 apps/desktop/release/
+apps/desktop/dist-electron/
 
 # Test coverage
 coverage/
