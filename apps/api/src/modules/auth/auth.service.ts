@@ -55,12 +55,16 @@ export class AuthService {
 
   async refresh(userId: string, oldRefreshToken: string) {
     const hash = createHash('sha256').update(oldRefreshToken).digest('hex');
-    if (await this.redis.exists(`auth:refresh:blacklist:${hash}`)) {
+    const key = `auth:refresh:blacklist:${hash}`;
+    // Atomic SET NX: write succeeds only if key doesn't exist yet.
+    // Two concurrent refresh calls with the same token both attempt this;
+    // only one gets 'OK' — the other gets null and is rejected.
+    const claimed = await this.redis.set(key, '1', 'EX', REFRESH_TTL, 'NX');
+    if (claimed === null) {
       throw new UnauthorizedException('Refresh token already used');
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
-    await this.redis.set(`auth:refresh:blacklist:${hash}`, '1', 'EX', REFRESH_TTL);
     return this.buildTokenPair(user);
   }
 

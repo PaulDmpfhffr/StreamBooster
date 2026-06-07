@@ -16,7 +16,7 @@ const mockPrisma = {
 
 const mockJwt = { sign: jest.fn(() => 'token') };
 const mockConfig = { get: jest.fn((key) => key) };
-const mockRedis = { exists: jest.fn(), set: jest.fn() };
+const mockRedis = { set: jest.fn() };
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -34,8 +34,7 @@ describe('AuthService', () => {
 
     service = module.get(AuthService);
     jest.clearAllMocks();
-    mockRedis.exists.mockResolvedValue(0);
-    mockRedis.set.mockResolvedValue('OK');
+    mockRedis.set.mockResolvedValue('OK'); // SET NX → 'OK' = not yet blacklisted
   });
 
   describe('register', () => {
@@ -103,7 +102,7 @@ describe('AuthService', () => {
     });
 
     it('lève UnauthorizedException si le token est déjà blacklisté (replay attack)', async () => {
-      mockRedis.exists.mockResolvedValue(1);
+      mockRedis.set.mockResolvedValue(null); // SET NX → null = key already existed (blacklisted)
       await expect(service.refresh('uuid-1', fakeToken)).rejects.toThrow(UnauthorizedException);
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
