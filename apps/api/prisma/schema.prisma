@@ -57,7 +57,7 @@ model User {
 model ApiKey {
   id         String    @id @default(uuid())
   userId     String    @map("user_id")
-  keyHash    String    @map("key_hash")
+  keyHash    String    @unique @map("key_hash")
   label      String
   lastUsedAt DateTime? @map("last_used_at")
   isActive   Boolean   @default(true) @map("is_active")
@@ -119,6 +119,8 @@ model Session {
   apiKey   ApiKey         @relation(fields: [apiKeyId], references: [id])
   proxies  SessionProxy[]
 
+  @@index([status, lastHeartbeatAt])
+  @@index([userId, startedAt])
   @@map("sessions")
 }
 
@@ -145,5 +147,6 @@ model BandwidthTransaction {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, createdAt])
   @@map("bandwidth_transactions")
 }
