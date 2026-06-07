@@ -1,6 +1,6 @@
-import { chromium, Browser, BrowserContext } from 'playwright-core';
+import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
 import { detectPlatform } from './platformDetector';
-import { injectTwitch } from './twitchInjector';
+import { injectTwitch, getTwitchViewerCount } from './twitchInjector';
 import { injectYoutube } from './youtubeInjector';
 import { injectKick } from './kickInjector';
 import { injectTiktok } from './tiktokInjector';
@@ -10,6 +10,7 @@ export interface SessionConfig {
   streamUrl: string;
   proxies: Array<{ index: number; address: string }>;
   onScreenshot?: (index: number, png: Buffer) => void;
+  onViewerCount?: (count: number | null) => void;
 }
 
 export interface ActiveSession {
@@ -19,10 +20,18 @@ export interface ActiveSession {
 }
 
 const SCREENSHOT_INTERVAL_MS = 5000;
+const VIEWER_COUNT_INTERVAL_MS = 10_000;
 
 export class SessionManager {
   private browser: Browser | null = null;
   private activeSessions = new Map<string, ActiveSession>();
+  private sessionBytes = new Map<string, number>();
+
+  getAndResetBytes(sessionId: string): number {
+    const bytes = this.sessionBytes.get(sessionId) ?? 0;
+    this.sessionBytes.set(sessionId, 0);
+    return bytes;
+  }
 
   async start(
     config: SessionConfig,
@@ -34,77 +43,120 @@ export class SessionManager {
 
     const platform = detectPlatform(config.streamUrl);
     const injector = this.getInjector(platform);
+    const viewerCountFn = this.getViewerCountFn(platform);
 
-    const contexts: BrowserContext[] = [];
+    this.sessionBytes.set(config.sessionId, 0);
 
-    try {
-      for (const proxy of config.proxies) {
+    const settled = await Promise.allSettled(
+      config.proxies.map(async (proxy) => {
         const [protocol, rest] = proxy.address.replace('://', '@@').split('@@');
-        // Use lastIndexOf so passwords containing '@' are handled correctly.
         const lastAt = rest.lastIndexOf('@');
         const credentials = lastAt >= 0 ? rest.substring(0, lastAt) : '';
         const hostPort = lastAt >= 0 ? rest.substring(lastAt + 1) : rest;
-        // Use indexOf so passwords containing ':' are handled correctly (only first colon splits user/pass).
         const colonIdx = credentials.indexOf(':');
         const username = colonIdx >= 0 ? credentials.substring(0, colonIdx) : credentials;
         const password = colonIdx >= 0 ? credentials.substring(colonIdx + 1) : '';
 
-        const ctx = await this.browser.newContext({
+        const ctx = await this.browser!.newContext({
           proxy: {
             server: `${protocol}://${hostPort}`,
             username: username || undefined,
             password: password || undefined,
           },
         });
-        contexts.push(ctx); // push early so cleanup catches it on error
 
         const page = await ctx.newPage();
-        // addInitScript must run BEFORE goto — it only applies to the next navigation.
+
+        // Comptabilise les bytes réseau réels reçus.
+        page.on('requestfinished', async (request) => {
+          try {
+            const sizes = await request.sizes();
+            const current = this.sessionBytes.get(config.sessionId) ?? 0;
+            this.sessionBytes.set(config.sessionId, current + sizes.responseBodySize);
+          } catch {}
+        });
+
         await page.addInitScript(() => {
           Object.defineProperty(navigator, 'webdriver', { get: () => false });
+          // Twitch : impose la qualité minimale avant l'initialisation du lecteur.
+          if (location.hostname.includes('twitch.tv')) {
+            try { localStorage.setItem('video-quality', JSON.stringify({ default: '160p30' })); } catch {}
+          }
         });
+
         await page.goto(config.streamUrl, { waitUntil: 'domcontentloaded' });
         await injector(page);
 
-        if (config.onScreenshot) {
-          const captureLoop = async () => {
-            while (this.activeSessions.has(config.sessionId)) {
-              try {
-                const png = await page.screenshot({ type: 'png' });
-                config.onScreenshot!(proxy.index, png);
-              } catch {}
-              await new Promise((r) => setTimeout(r, SCREENSHOT_INTERVAL_MS));
-            }
-          };
-          captureLoop().catch(() => {});
-        }
+        return { ctx, page, index: proxy.index };
+      }),
+    );
+
+    const succeeded: Array<{ ctx: BrowserContext; page: Page; index: number }> = [];
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        succeeded.push(result.value);
       }
-    } catch (err) {
-      // Nettoyage des contextes partiellement créés avant de propager l'erreur
-      for (const ctx of contexts) {
-        await ctx.close().catch(() => {});
-      }
-      throw err;
+    }
+
+    if (succeeded.length === 0) {
+      this.sessionBytes.delete(config.sessionId);
+      throw new Error('Aucune instance n\'a pu démarrer. Vérifiez vos proxies.');
     }
 
     const heartbeatTimer = setInterval(heartbeatFn, 30_000);
 
     this.activeSessions.set(config.sessionId, {
       sessionId: config.sessionId,
-      contexts,
+      contexts: succeeded.map((s) => s.ctx),
       heartbeatTimer,
     });
+
+    for (const { page, index } of succeeded) {
+      // Boucle de capture d'écran.
+      if (config.onScreenshot) {
+        const captureLoop = async () => {
+          while (this.activeSessions.has(config.sessionId)) {
+            try {
+              const png = await page.screenshot({ type: 'png' });
+              config.onScreenshot!(index, png);
+            } catch {}
+            await new Promise((r) => setTimeout(r, SCREENSHOT_INTERVAL_MS));
+          }
+        };
+        captureLoop().catch(() => {});
+      }
+    }
+
+    // Boucle de lecture du nombre de viewers sur la première instance uniquement
+    // (toutes les instances regardent le même live).
+    if (config.onViewerCount && viewerCountFn && succeeded.length > 0) {
+      const firstPage = succeeded[0].page;
+      const viewerLoop = async () => {
+        while (this.activeSessions.has(config.sessionId)) {
+          try {
+            const count = await viewerCountFn(firstPage);
+            config.onViewerCount!(count);
+          } catch {}
+          await new Promise((r) => setTimeout(r, VIEWER_COUNT_INTERVAL_MS));
+        }
+      };
+      viewerLoop().catch(() => {});
+    }
   }
 
-  async stop(sessionId: string): Promise<void> {
+  async stop(sessionId: string): Promise<number> {
     const session = this.activeSessions.get(sessionId);
-    if (!session) return;
+    if (!session) return 0;
 
     clearInterval(session.heartbeatTimer);
     for (const ctx of session.contexts) {
       await ctx.close().catch(() => {});
     }
     this.activeSessions.delete(sessionId);
+
+    const remaining = this.sessionBytes.get(sessionId) ?? 0;
+    this.sessionBytes.delete(sessionId);
+    return remaining;
   }
 
   async stopAll(): Promise<void> {
@@ -122,6 +174,13 @@ export class SessionManager {
       case 'kick': return injectKick;
       case 'tiktok': return injectTiktok;
       default: return injectTwitch;
+    }
+  }
+
+  private getViewerCountFn(platform: string): ((page: Page) => Promise<number | null>) | null {
+    switch (platform) {
+      case 'twitch': return getTwitchViewerCount;
+      default: return null; // YouTube/Kick/TikTok à implémenter ultérieurement
     }
   }
 }

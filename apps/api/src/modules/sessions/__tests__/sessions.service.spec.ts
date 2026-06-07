@@ -53,7 +53,7 @@ describe('SessionsService', () => {
       await expect(service.start('unknown', 'key-1', sessionData)).rejects.toThrow(ForbiddenException);
     });
 
-    it('lève BadRequestException si la bande passante est insuffisante', async () => {
+    it('lève BadRequestException si la bande passante est insuffisante (< 30s de streaming)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         bandwidthBytesRemaining: BigInt(0),
@@ -61,12 +61,12 @@ describe('SessionsService', () => {
       await expect(service.start('user-1', 'key-1', sessionData)).rejects.toThrow(BadRequestException);
     });
 
-    it('démarre une session et retourne sessionId + proxys', async () => {
-      mockPrisma.user.findUnique
-        .mockResolvedValueOnce({ id: 'user-1', bandwidthBytesRemaining: BigInt(2 * 1024 * 1024 * 1024) })
-        .mockResolvedValueOnce({ bandwidthBytesRemaining: BigInt(1.5 * 1024 * 1024 * 1024) });
-      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 }); // solde suffisant
-      mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
+    it('démarre une session sans déduire de bande passante au lancement', async () => {
+      const initialBalance = BigInt(2 * 1024 * 1024 * 1024);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        bandwidthBytesRemaining: initialBalance,
+      });
       mockPrisma.session.create.mockResolvedValue({ id: 'sess-1' });
       mockPrisma.sessionProxy.createMany.mockResolvedValue({});
 
@@ -74,18 +74,11 @@ describe('SessionsService', () => {
 
       expect(result.sessionId).toBe('sess-1');
       expect(result.proxies).toHaveLength(1);
+      expect(result.bandwidthReservedBytes).toBe(0);
+      // Aucune déduction au démarrage
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
       expect(mockRedis.set).toHaveBeenCalledWith('session:sess-1:heartbeat', '1', 'EX', 90);
-    });
-
-    it('lève BadRequestException si le solde passe à zéro entre le check et la transaction (race condition)', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        bandwidthBytesRemaining: BigInt(2 * 1024 * 1024 * 1024),
-      });
-      // updateMany renvoie count=0 : un autre appel concurrent a déjà préempté le solde
-      mockPrisma.user.updateMany.mockResolvedValue({ count: 0 });
-
-      await expect(service.start('user-1', 'key-1', sessionData)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -124,9 +117,10 @@ describe('SessionsService', () => {
       id: 'sess-1',
       userId: 'user-1',
       status: 'active',
+      platform: 'twitch',
       startedAt: new Date(Date.now() - 60_000), // 60s ago
       instanceCount: 1,
-      bytesEstimated: BigInt(500 * 1024 * 1024),
+      bytesEstimated: BigInt(0),
     };
 
     it('ne fait rien si la session n\'existe pas', async () => {
@@ -135,7 +129,22 @@ describe('SessionsService', () => {
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('émet broadcastSessionUpdate à la fin', async () => {
+    it('déduit les bytes finaux fournis en paramètre (dernier intervalle non reporté via heartbeat)', async () => {
+      mockPrisma.session.findUnique.mockResolvedValue(baseSession);
+      mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.session.update = jest.fn().mockResolvedValue({});
+
+      const finalBytes = 12_345_678;
+      await service.finalizeSession('sess-1', finalBytes);
+
+      // user.update doit déduire exactement les finalBytes
+      const userUpdate = mockPrisma.user.update.mock.calls[0][0];
+      expect(userUpdate.data.bandwidthBytesRemaining.decrement).toBe(finalBytes);
+      expect(userUpdate.data.bandwidthBytesUsedTotal.increment).toBe(finalBytes);
+    });
+
+    it('émet broadcastSessionUpdate et supprime la clé Redis à la fin', async () => {
       mockPrisma.session.findUnique.mockResolvedValue(baseSession);
       mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.user.update.mockResolvedValue({});
@@ -157,63 +166,39 @@ describe('SessionsService', () => {
       expect(mockRedis.del).not.toHaveBeenCalled();
     });
 
-    it('rembourse les bytes si la consommation réelle est inférieure à la réservation', async () => {
-      // 1s de session → consommation très faible < 500 Mo réservé
-      const shortSession = { ...baseSession, startedAt: new Date(Date.now() - 1_000) };
-      mockPrisma.session.findUnique.mockResolvedValue(shortSession);
+    it('ne crée pas de transaction si la durée est nulle (session immédiatement arrêtée)', async () => {
+      const instantSession = { ...baseSession, startedAt: new Date() };
+      mockPrisma.session.findUnique.mockResolvedValue(instantSession);
       mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
-      mockPrisma.user.update.mockResolvedValue({});
-      mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
 
       await service.finalizeSession('sess-1');
 
-      // La transaction de refund doit être créée (adjustment > 0)
-      const txCall = mockPrisma.bandwidthTransaction.create.mock.calls[0][0];
-      expect(txCall.data.type).toBe('refund');
-      expect(txCall.data.bytesDelta).toBeGreaterThan(0);
-    });
-
-    it('débite le dépassement si la consommation dépasse la réservation', async () => {
-      // 1 heure de session à 5 MB/s >> 500 Mo réservé
-      const longSession = { ...baseSession, startedAt: new Date(Date.now() - 3_600_000) };
-      mockPrisma.session.findUnique.mockResolvedValue(longSession);
-      mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
-      mockPrisma.user.update.mockResolvedValue({});
-      mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
-
-      await service.finalizeSession('sess-1');
-
-      // La transaction de consumption doit être créée (adjustment < 0)
-      const txCall = mockPrisma.bandwidthTransaction.create.mock.calls[0][0];
-      expect(txCall.data.type).toBe('consumption');
-      expect(txCall.data.bytesDelta).toBeLessThan(0);
+      expect(mockPrisma.bandwidthTransaction.create).not.toHaveBeenCalled();
+      expect(mockGateway.broadcastSessionUpdate).toHaveBeenCalledWith({ id: 'sess-1', status: 'ended' });
     });
   });
 
   describe('expireDeadSessions', () => {
     it('continue de traiter les sessions suivantes si l\'une échoue (isolation erreur)', async () => {
-      // sess-1 : findUnique ok mais updateMany lève une erreur (simule DB timeout)
-      // sess-2 : traitée normalement après l'erreur de sess-1
       mockPrisma.session.findMany.mockResolvedValue([
         { id: 'sess-err' },
         { id: 'sess-ok' },
       ]);
 
-      const baseSession = {
+      const okSession = {
         id: 'sess-ok',
         userId: 'user-1',
         status: 'active',
+        platform: 'twitch',
         startedAt: new Date(Date.now() - 60_000),
         instanceCount: 1,
-        bytesEstimated: BigInt(500 * 1024 * 1024),
+        bytesEstimated: BigInt(0),
       };
 
       mockPrisma.session.findUnique
-        .mockResolvedValueOnce({ ...baseSession, id: 'sess-err' })
-        .mockResolvedValueOnce(baseSession);
+        .mockResolvedValueOnce({ ...okSession, id: 'sess-err' })
+        .mockResolvedValueOnce(okSession);
 
-      // sess-err : updateMany lève une erreur
-      // sess-ok : updateMany réussit
       mockPrisma.session.updateMany
         .mockRejectedValueOnce(new Error('DB timeout'))
         .mockResolvedValueOnce({ count: 1 });
@@ -223,7 +208,6 @@ describe('SessionsService', () => {
 
       await service.expireDeadSessions();
 
-      // broadcastSessionUpdate doit avoir été appelé pour sess-ok malgré l'erreur sur sess-err
       expect(mockGateway.broadcastSessionUpdate).toHaveBeenCalledWith({ id: 'sess-ok', status: 'ended' });
       expect(mockGateway.broadcastSessionUpdate).not.toHaveBeenCalledWith({ id: 'sess-err', status: 'ended' });
     });

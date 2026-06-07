@@ -39,6 +39,22 @@ class StartSessionDto {
   preferProxyCountry?: string;
 }
 
+class HeartbeatDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  bytesConsumed?: number;
+}
+
+class StopSessionDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  finalBytes?: number;
+}
+
 interface RequestWithApiKey extends Request {
   user: User;
   apiKey: ApiKey;
@@ -60,15 +76,23 @@ export class SessionsController {
   @Post(':id/heartbeat')
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
-  heartbeat(@Req() req: RequestWithApiKey, @Param('id') sessionId: string) {
-    return this.sessionsService.heartbeat(sessionId, req.user.id);
+  heartbeat(
+    @Req() req: RequestWithApiKey,
+    @Param('id') sessionId: string,
+    @Body() body: HeartbeatDto,
+  ) {
+    return this.sessionsService.heartbeat(sessionId, req.user.id, body.bytesConsumed ?? 0);
   }
 
   @Post(':id/stop')
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
-  stop(@Req() req: RequestWithApiKey, @Param('id') sessionId: string) {
-    return this.sessionsService.stop(sessionId, req.user.id);
+  stop(
+    @Req() req: RequestWithApiKey,
+    @Param('id') sessionId: string,
+    @Body() body: StopSessionDto,
+  ) {
+    return this.sessionsService.stop(sessionId, req.user.id, body.finalBytes ?? 0);
   }
 
   @Get()

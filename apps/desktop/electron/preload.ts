@@ -11,8 +11,10 @@ contextBridge.exposeInMainWorld('sbAPI', {
   sessionStart: (config: object) => ipcRenderer.invoke('session:start', config),
   sessionStop: (sessionId: string) => ipcRenderer.invoke('session:stop', sessionId),
   apiSessionStart: (body: object) => ipcRenderer.invoke('api:session-start', body),
-  apiSessionStop: (sessionId: string) => ipcRenderer.invoke('api:session-stop', sessionId),
-  apiHeartbeat: (sessionId: string) => ipcRenderer.invoke('api:session-heartbeat', sessionId),
+  apiSessionStop: (sessionId: string, finalBytes?: number) =>
+    ipcRenderer.invoke('api:session-stop', sessionId, finalBytes ?? 0),
+  apiHeartbeat: (sessionId: string, bytes: number) =>
+    ipcRenderer.invoke('api:session-heartbeat', sessionId, bytes),
 
   on: (channel: string, cb: Callback) => {
     const wrapped = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args);

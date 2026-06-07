@@ -13,7 +13,10 @@ import { ProxiesService } from '../proxies/proxies.service';
 import { SessionsGateway } from './sessions.gateway';
 
 const HEARTBEAT_TTL = 90;
-const BITRATE_SOURCE_BYTES_PER_SEC = 5000 * 1024;
+
+// Consommation minimale pour pouvoir démarrer (30s × 1 instance à ~5 MB/s)
+const MIN_BYTES_TO_START = (instanceCount: number) =>
+  instanceCount * 5000 * 1024 * 30;
 
 @Injectable()
 export class SessionsService {
@@ -35,9 +38,7 @@ export class SessionsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new ForbiddenException();
 
-    const reservedBytes = this.proxies.getReservedBytesForCount(data.instanceCount);
-    // Optimistic early check (not the authoritative check — see atomic updateMany below)
-    if (user.bandwidthBytesRemaining < BigInt(reservedBytes)) {
+    if (Number(user.bandwidthBytesRemaining) < MIN_BYTES_TO_START(data.instanceCount)) {
       throw new BadRequestException('Insufficient bandwidth balance');
     }
 
@@ -47,25 +48,6 @@ export class SessionsService {
     );
 
     const session = await this.prisma.$transaction(async (tx) => {
-      // Atomic conditional decrement — prevents TOCTOU race when two concurrent
-      // start requests both pass the optimistic check before either decrements.
-      const deducted = await tx.user.updateMany({
-        where: { id: userId, bandwidthBytesRemaining: { gte: reservedBytes } },
-        data: { bandwidthBytesRemaining: { decrement: reservedBytes } },
-      });
-      if (deducted.count === 0) {
-        throw new BadRequestException('Insufficient bandwidth balance');
-      }
-
-      await tx.bandwidthTransaction.create({
-        data: {
-          userId,
-          type: 'consumption',
-          bytesDelta: -reservedBytes,
-          description: `Réservation session ${data.platform} ×${data.instanceCount}`,
-        },
-      });
-
       const sess = await tx.session.create({
         data: {
           userId,
@@ -73,7 +55,7 @@ export class SessionsService {
           platform: data.platform,
           streamUrl: data.streamUrl,
           instanceCount: data.instanceCount,
-          bytesEstimated: reservedBytes,
+          bytesEstimated: 0,
           lastHeartbeatAt: new Date(),
         },
       });
@@ -91,45 +73,66 @@ export class SessionsService {
 
     await this.redis.set(`session:${session.id}:heartbeat`, '1', 'EX', HEARTBEAT_TTL);
 
-    const newBalance = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { bandwidthBytesRemaining: true },
-    });
-
     return {
       sessionId: session.id,
       proxies: allocated.map(({ address }, i) => ({ index: i + 1, address })),
-      bandwidthReservedBytes: Number(reservedBytes),
-      bandwidthRemainingBytes: Number(newBalance?.bandwidthBytesRemaining ?? 0),
+      bandwidthReservedBytes: 0,
+      bandwidthRemainingBytes: Number(user.bandwidthBytesRemaining),
     };
   }
 
-  async heartbeat(sessionId: string, userId: string) {
+  async heartbeat(sessionId: string, userId: string, bytesConsumed: number = 0) {
     const session = await this.prisma.session.findFirst({
       where: { id: sessionId, userId, status: 'active' },
     });
     if (!session) throw new NotFoundException('Session not found or not active');
 
     await this.redis.set(`session:${sessionId}:heartbeat`, '1', 'EX', HEARTBEAT_TTL);
-    await this.prisma.session.update({
-      where: { id: sessionId },
-      data: { lastHeartbeatAt: new Date() },
+
+    if (bytesConsumed > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.session.update({
+          where: { id: sessionId },
+          data: {
+            lastHeartbeatAt: new Date(),
+            bytesEstimated: { increment: bytesConsumed },
+          },
+        });
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            bandwidthBytesRemaining: { decrement: bytesConsumed },
+            bandwidthBytesUsedTotal: { increment: bytesConsumed },
+          },
+        });
+      });
+    } else {
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: { lastHeartbeatAt: new Date() },
+      });
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { bandwidthBytesRemaining: true },
     });
 
-    return { ok: true };
+    return {
+      ok: true,
+      bandwidthRemainingBytes: Number(user?.bandwidthBytesRemaining ?? 0),
+    };
   }
 
-  async stop(sessionId: string, userId: string) {
+  async stop(sessionId: string, userId: string, finalBytes: number = 0) {
     const session = await this.prisma.session.findFirst({
       where: { id: sessionId, userId },
     });
     if (!session) throw new NotFoundException('Session not found');
 
-    // Idempotent: if already ended (e.g. expired by the cron while client was
-    // still running), silently return success instead of propagating a 404.
     if (session.status !== 'active') return { ok: true };
 
-    await this.finalizeSession(sessionId);
+    await this.finalizeSession(sessionId, finalBytes);
     return { ok: true };
   }
 
@@ -141,43 +144,32 @@ export class SessionsService {
     });
   }
 
-  async finalizeSession(sessionId: string) {
+  async finalizeSession(sessionId: string, finalBytes: number = 0) {
     const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
     if (!session || session.status !== 'active') return;
 
-    const endedAt = new Date();
-    const durationSec = (endedAt.getTime() - session.startedAt.getTime()) / 1000;
-    const bytesConsumed = Math.floor(durationSec * session.instanceCount * BITRATE_SOURCE_BYTES_PER_SEC);
-    const reserved = Number(session.bytesEstimated);
-    const adjustment = reserved - bytesConsumed;
-
     const finalized = await this.prisma.$transaction(async (tx) => {
-      // Atomic guard against concurrent cron + manual stop double-finalization
       const claimed = await tx.session.updateMany({
         where: { id: sessionId, status: 'active' },
-        data: { status: 'ended', endedAt, bytesEstimated: bytesConsumed },
+        data: { status: 'ended', endedAt: new Date() },
       });
-      if (claimed.count === 0) return false; // already finalized by concurrent call
+      if (claimed.count === 0) return false;
 
-      await tx.user.update({
-        where: { id: session.userId },
-        data: { bandwidthBytesUsedTotal: { increment: bytesConsumed } },
-      });
-
-      if (adjustment !== 0) {
+      // Déduit les bytes du dernier intervalle non encore reportés via heartbeat.
+      if (finalBytes > 0) {
         await tx.user.update({
           where: { id: session.userId },
-          data: { bandwidthBytesRemaining: { increment: adjustment } },
-        });
-        await tx.bandwidthTransaction.create({
           data: {
-            userId: session.userId,
-            type: adjustment > 0 ? 'refund' : 'consumption',
-            bytesDelta: adjustment,
-            description: `Ajustement fin session ${sessionId.slice(0, 8)}`,
+            bandwidthBytesRemaining: { decrement: finalBytes },
+            bandwidthBytesUsedTotal: { increment: finalBytes },
           },
         });
+        await tx.session.update({
+          where: { id: sessionId },
+          data: { bytesEstimated: { increment: finalBytes } },
+        });
       }
+
       return true;
     });
 
@@ -198,7 +190,7 @@ export class SessionsService {
     });
 
     for (const { id } of deadSessions) {
-      await this.finalizeSession(id).catch((err) => {
+      await this.finalizeSession(id, 0).catch((err) => {
         this.logger.error(`Échec finalisation session expirée ${id}`, err);
       });
     }

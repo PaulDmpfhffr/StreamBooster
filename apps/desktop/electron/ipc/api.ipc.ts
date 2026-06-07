@@ -1,8 +1,11 @@
 import { ipcMain } from 'electron';
 import Store from 'electron-store';
 
-const store = new Store();
-const API_BASE = 'https://api.streambooster.io/api/v1';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const store = new Store() as any;
+const API_BASE = process.env.NODE_ENV === 'production'
+  ? 'https://api.streambooster.io/api/v1'
+  : 'http://localhost:3001/api/v1';
 
 function getApiBase(): string {
   return (store.get('apiBase') as string | undefined) ?? API_BASE;
@@ -45,24 +48,26 @@ export function registerApiIpc() {
     return res.json();
   });
 
-  ipcMain.handle('api:session-heartbeat', async (_e, sessionId: string) => {
+  ipcMain.handle('api:session-heartbeat', async (_e, sessionId: string, bytes: number) => {
     const key = getApiKey();
     if (!key) return;
     const res = await fetch(`${getApiBase()}/sessions/${sessionId}/heartbeat`, {
       method: 'POST',
-      headers: { 'x-api-key': key },
+      headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytesConsumed: bytes }),
     });
-    // 404 = session expired by the cron while client was running.
-    // Return a flag so the renderer can stop the local session and update the UI.
     if (res.status === 404) return { sessionExpired: true };
+    if (!res.ok) return;
+    return res.json();
   });
 
-  ipcMain.handle('api:session-stop', async (_e, sessionId: string) => {
+  ipcMain.handle('api:session-stop', async (_e, sessionId: string, finalBytes: number) => {
     const key = getApiKey();
     if (!key) return;
     const res = await fetch(`${getApiBase()}/sessions/${sessionId}/stop`, {
       method: 'POST',
-      headers: { 'x-api-key': key },
+      headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ finalBytes }),
     });
     if (!res.ok) throw new Error(await res.text());
   });

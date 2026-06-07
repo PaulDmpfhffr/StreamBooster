@@ -88,7 +88,7 @@ model ProxyProvider {
 model ProxyPool {
   id                    String    @id @default(uuid())
   providerId            String    @map("provider_id")
-  addressEncrypted      String    @map("address_encrypted")
+  addressEncrypted      String    @db.Text @map("address_encrypted")
   countryCode           String    @map("country_code") @db.VarChar(2)
   type                  ProxyType
   isActive              Boolean   @default(true) @map("is_active")

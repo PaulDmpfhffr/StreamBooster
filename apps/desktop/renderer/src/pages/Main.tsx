@@ -22,6 +22,7 @@ export default function Main({ account, onLogout }: Props) {
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [screenshots, setScreenshots] = useState<Record<number, string>>({});
+  const [viewerCount, setViewerCount] = useState<number | null>(null);
   const [bandwidth, setBandwidth] = useState(account.bandwidthBytesRemaining);
 
   useEffect(() => {
@@ -29,24 +30,35 @@ export default function Main({ account, onLogout }: Props) {
       const { index, dataUrl } = data as { index: number; dataUrl: string };
       setScreenshots((prev) => ({ ...prev, [index]: dataUrl }));
     };
-    const onHeartbeat = async (sid: unknown) => {
-      if (typeof sid !== 'string') return;
-      const result = await window.sbAPI.apiHeartbeat(sid) as { sessionExpired?: boolean } | undefined;
+    const onViewerCount = (data: unknown) => {
+      const { count } = data as { count: number | null };
+      setViewerCount(count);
+    };
+    const onHeartbeat = async (data: unknown) => {
+      const { sessionId: sid, bytes } = data as { sessionId: string; bytes: number };
+      const result = await window.sbAPI.apiHeartbeat(sid, bytes) as {
+        sessionExpired?: boolean;
+        bandwidthRemainingBytes?: number;
+      } | undefined;
       if (result?.sessionExpired) {
-        // Session expired server-side (cron heartbeat timeout) — reset local state.
         setSessionId(null);
         setScreenshots({});
         setSessionState('idle');
         await window.sbAPI.sessionStop(sid).catch(() => {});
+      } else if (result?.bandwidthRemainingBytes !== undefined) {
+        // Mise à jour du solde en temps réel à chaque heartbeat
+        setBandwidth(result.bandwidthRemainingBytes);
       }
     };
 
     window.sbAPI.on('screenshot:update', onScreenshot);
     window.sbAPI.on('session:heartbeat', onHeartbeat);
+    window.sbAPI.on('viewer:update', onViewerCount);
 
     return () => {
       window.sbAPI.off('screenshot:update', onScreenshot);
       window.sbAPI.off('session:heartbeat', onHeartbeat);
+      window.sbAPI.off('viewer:update', onViewerCount);
     };
   }, []);
 
@@ -81,6 +93,7 @@ export default function Main({ account, onLogout }: Props) {
         window.sbAPI.apiSessionStop(apiSessionId).catch(() => {});
       }
       setSessionId(null);
+      setViewerCount(null);
       setSessionState('idle');
       alert(`Erreur: ${(e as Error).message}`);
     }
@@ -90,15 +103,15 @@ export default function Main({ account, onLogout }: Props) {
     if (!sessionId) return;
     setSessionState('stopping');
     try {
-      // Run both stops concurrently and independently — if the Electron browser
-      // context fails, the API session must still be terminated to stop billing.
-      await Promise.allSettled([
-        window.sbAPI.sessionStop(sessionId),
-        window.sbAPI.apiSessionStop(sessionId),
-      ]);
+      // Arrête Playwright en premier pour récupérer les bytes finaux non encore reportés,
+      // puis les envoie à l'API pour une déduction précise jusqu'à la dernière seconde.
+      const stopResult = await window.sbAPI.sessionStop(sessionId).catch(() => ({ finalBytes: 0 }));
+      const finalBytes = (stopResult as { finalBytes?: number })?.finalBytes ?? 0;
+      await window.sbAPI.apiSessionStop(sessionId, finalBytes).catch(() => {});
     } finally {
       setSessionId(null);
       setScreenshots({});
+      setViewerCount(null);
       setSessionState('idle');
 
       window.sbAPI.getAccount()
@@ -165,6 +178,13 @@ export default function Main({ account, onLogout }: Props) {
           maxLength={2}
           className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm text-center"
         />
+
+        {viewerCount !== null && (
+          <div className="flex items-center gap-1.5 bg-red-600/20 border border-red-600/40 text-red-400 text-xs px-2.5 py-2 rounded-lg whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            {viewerCount.toLocaleString()} spectateurs
+          </div>
+        )}
 
         {!isRunning ? (
           <button

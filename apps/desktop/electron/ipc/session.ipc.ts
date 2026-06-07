@@ -3,7 +3,6 @@ import { SessionManager } from '../core/sessionManager';
 
 const manager = new SessionManager();
 
-// Stop all active browser sessions before the app quits to avoid orphan processes.
 app.on('before-quit', () => { manager.stopAll().catch(() => {}); });
 
 export function registerSessionIpc(getWin: () => BrowserWindow | null) {
@@ -21,16 +20,23 @@ export function registerSessionIpc(getWin: () => BrowserWindow | null) {
             dataUrl: `data:image/png;base64,${png.toString('base64')}`,
           });
         },
+        onViewerCount: (count) => {
+          getWin()?.webContents.send('viewer:update', { count });
+        },
       },
       async () => {
-        getWin()?.webContents.send('session:heartbeat', config.sessionId);
+        // Collecte les bytes réels depuis le dernier heartbeat et les envoie au renderer.
+        const bytes = manager.getAndResetBytes(config.sessionId);
+        getWin()?.webContents.send('session:heartbeat', { sessionId: config.sessionId, bytes });
       },
     );
     getWin()?.webContents.send('session:started', config.sessionId);
   });
 
   ipcMain.handle('session:stop', async (_e, sessionId: string) => {
-    await manager.stop(sessionId);
+    // Retourne les bytes non encore reportés pour la déduction finale côté API.
+    const finalBytes = await manager.stop(sessionId);
     getWin()?.webContents.send('session:stopped', sessionId);
+    return { finalBytes };
   });
 }

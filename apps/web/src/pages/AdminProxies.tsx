@@ -51,8 +51,15 @@ export default function AdminProxies() {
 
   const addProxy = useMutation({
     mutationFn: () => api.post('/admin/proxies', newProxy),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-proxies'] }); setShowAddProxy(false); },
-    onError: () => { setShowAddProxy(true); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-proxies'] });
+      setShowAddProxy(false);
+      setNewProxy({ providerId: '', address: '', countryCode: 'FR', type: 'residential' });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      alert(`Erreur : ${Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Vérifiez les champs.')}`);
+    },
   });
 
   const addProvider = useMutation({
@@ -264,9 +271,10 @@ export default function AdminProxies() {
               </select>
               <button
                 onClick={() => addProxy.mutate()}
-                className="col-span-2 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm"
+                disabled={!newProxy.providerId || !newProxy.address || newProxy.countryCode.length !== 2 || addProxy.isPending}
+                className="col-span-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-2 rounded-lg text-sm"
               >
-                Ajouter
+                {addProxy.isPending ? 'Ajout...' : 'Ajouter'}
               </button>
             </div>
           )}
