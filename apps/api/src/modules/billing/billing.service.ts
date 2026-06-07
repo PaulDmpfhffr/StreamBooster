@@ -125,6 +125,10 @@ export class BillingService {
       const def = PRODUCT_DEFINITIONS.find((p) => p.id === productId);
       if (!def) return;
 
+      // Subscriptions are credited via invoice.payment_succeeded (fires on every renewal
+      // including the first one). Crediting here would double-count the initial subscription.
+      if (def.isSubscription) return;
+
       const bytesToCredit = def.bytes ?? UNLIMITED_BYTES;
 
       // payment_intent is null for subscription mode; fall back to subscription ID

@@ -21,11 +21,17 @@ export default function Keys() {
       setLabel('');
       qc.invalidateQueries({ queryKey: ['api-keys'] });
     },
+    onError: () => {
+      alert('Erreur lors de la création de la clé. Veuillez réessayer.');
+    },
   });
 
   const revoke = useMutation({
     mutationFn: (id: string) => api.delete(`/keys/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+    onError: () => {
+      alert('Erreur lors de la révocation de la clé. Veuillez réessayer.');
+    },
   });
 
   const copyKey = () => {

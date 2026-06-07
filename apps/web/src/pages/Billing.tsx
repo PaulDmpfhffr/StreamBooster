@@ -28,6 +28,9 @@ export default function Billing() {
     onSuccess: (data) => {
       window.location.href = data.checkoutUrl;
     },
+    onError: () => {
+      alert('Erreur lors de la création du checkout. Veuillez réessayer.');
+    },
   });
 
   return (

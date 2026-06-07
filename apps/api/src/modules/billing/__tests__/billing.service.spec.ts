@@ -100,21 +100,21 @@ describe('BillingService', () => {
       expect(call.data.bandwidthBytesRemaining.increment).toBe(10 * 1024 * 1024 * 1024);
     });
 
-    it('crédite 10 To pour le plan unlimited (bytes null → UNLIMITED_BYTES)', async () => {
+    it('ignore checkout.session.completed pour unlimited (évite double-crédit avec invoice.payment_succeeded)', async () => {
+      // Stripe émet aussi invoice.payment_succeeded sur la première souscription.
+      // Ne pas créditer ici empêche de compter 2× les 10 To.
       mockStripe.webhooks.constructEvent.mockReturnValue(makeEvent('unlimited'));
       await service.handleWebhook(Buffer.from('{}'), 'sig');
-      const call = mockPrisma.user.update.mock.calls[0][0];
-      const TEN_TB = 10 * 1024 * 1024 * 1024 * 1024;
-      expect(call.data.bandwidthBytesRemaining.increment).toBe(TEN_TB);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.bandwidthTransaction.create).not.toHaveBeenCalled();
     });
 
-    it('utilise subscription ID comme stripePaymentId pour le plan unlimited (payment_intent null)', async () => {
+    it('ignore checkout.session.completed pour unlimited même avec subscription ID fourni', async () => {
       mockStripe.webhooks.constructEvent.mockReturnValue(
         makeEvent('unlimited', { payment_intent: null, subscription: 'sub_test123' }),
       );
       await service.handleWebhook(Buffer.from('{}'), 'sig');
-      const txCall = mockPrisma.bandwidthTransaction.create.mock.calls[0][0];
-      expect(txCall.data.stripePaymentId).toBe('sub_test123');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
     it('ignore les events inconnus silencieusement', async () => {
