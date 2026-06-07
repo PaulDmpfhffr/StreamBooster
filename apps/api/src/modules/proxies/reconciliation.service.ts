@@ -51,42 +51,46 @@ export class ReconciliationService {
       });
 
       for (const session of sessions) {
-        // Accumulate bytes across ALL proxies of this session for this provider
-        // before writing — otherwise last-write-wins when a session has multiple
-        // proxies from the same provider.
-        let totalRealBytes = 0;
-        let hasProviderData = false;
+        try {
+          // Accumulate bytes across ALL proxies of this session for this provider
+          // before writing — otherwise last-write-wins when a session has multiple
+          // proxies from the same provider.
+          let totalRealBytes = 0;
+          let hasProviderData = false;
 
-        for (const sp of session.proxies) {
-          if (!sp.proxy.providerCredentialId) continue;
-          try {
-            const realBytes = await adapter.getUsageBytes(
-              sp.proxy.providerCredentialId,
-              session.startedAt,
-              session.endedAt!,
-            );
-            if (realBytes > 0) {
-              totalRealBytes += realBytes;
-              hasProviderData = true;
+          for (const sp of session.proxies) {
+            if (!sp.proxy.providerCredentialId) continue;
+            try {
+              const realBytes = await adapter.getUsageBytes(
+                sp.proxy.providerCredentialId,
+                session.startedAt,
+                session.endedAt!,
+              );
+              if (realBytes > 0) {
+                totalRealBytes += realBytes;
+                hasProviderData = true;
+              }
+            } catch (e) {
+              this.logger.error(`Réconciliation proxy ${sp.proxy.id} session ${session.id}`, e);
             }
-          } catch (e) {
-            this.logger.error(`Réconciliation proxy ${sp.proxy.id} session ${session.id}`, e);
           }
-        }
 
-        if (!hasProviderData) continue;
+          if (!hasProviderData) continue;
 
-        const estimated = Number(session.bytesEstimated);
-        if (estimated === 0) continue;
-        const diff = Math.abs(totalRealBytes - estimated);
-        if (diff / estimated > ADJUSTMENT_THRESHOLD) {
-          await this.prisma.session.update({
-            where: { id: session.id },
-            data: { bytesReconciled: totalRealBytes },
-          });
-          this.logger.debug(
-            `Session ${session.id}: estimated=${estimated}, reconciled=${totalRealBytes}`,
-          );
+          const estimated = Number(session.bytesEstimated);
+          if (estimated === 0) continue;
+          const diff = Math.abs(totalRealBytes - estimated);
+          if (diff / estimated > ADJUSTMENT_THRESHOLD) {
+            await this.prisma.session.update({
+              where: { id: session.id },
+              data: { bytesReconciled: totalRealBytes },
+            });
+            this.logger.debug(
+              `Session ${session.id}: estimated=${estimated}, reconciled=${totalRealBytes}`,
+            );
+          }
+        } catch (e) {
+          this.logger.error(`Échec réconciliation session ${session.id}`, e);
         }
       }
     }
