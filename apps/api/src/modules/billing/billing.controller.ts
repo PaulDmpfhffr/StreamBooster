@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { BillingService } from './billing.service';
 import { JwtGuard } from '../auth/guards/jwt.guard';
@@ -41,6 +42,7 @@ export class BillingController {
 
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   async handleWebhook(
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature: string,
