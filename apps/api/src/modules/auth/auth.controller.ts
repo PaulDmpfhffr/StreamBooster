@@ -6,17 +6,26 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 class RegisterDto {
+  @IsEmail()
   email!: string;
+
+  @IsString()
+  @MinLength(8)
   password!: string;
 }
 
 class LoginDto {
+  @IsEmail()
   email!: string;
+
+  @IsString()
+  @MinLength(1)
   password!: string;
 }
 
