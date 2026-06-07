@@ -142,7 +142,7 @@ model BandwidthTransaction {
   type            TransactionType
   bytesDelta      BigInt          @map("bytes_delta")
   description     String
-  stripePaymentId String?         @map("stripe_payment_id")
+  stripePaymentId String?  @unique @map("stripe_payment_id")
   createdAt       DateTime        @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])

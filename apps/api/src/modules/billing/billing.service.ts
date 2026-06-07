@@ -149,23 +149,29 @@ export class BillingService {
 
       const bytesToCredit = def.bytes ?? UNLIMITED_BYTES;
 
-      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        await tx.user.update({
-          where: { id: userId },
-          data: { bandwidthBytesRemaining: { increment: bytesToCredit } },
+      try {
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          await tx.user.update({
+            where: { id: userId },
+            data: { bandwidthBytesRemaining: { increment: bytesToCredit } },
+          });
+          await tx.bandwidthTransaction.create({
+            data: {
+              userId,
+              type: 'purchase',
+              bytesDelta: bytesToCredit,
+              description: `Achat ${def.name}`,
+              stripePaymentId: session.id,
+            },
+          });
         });
-        await tx.bandwidthTransaction.create({
-          data: {
-            userId,
-            type: 'purchase',
-            bytesDelta: bytesToCredit,
-            description: `Achat ${def.name}`,
-            stripePaymentId: session.id,
-          },
-        });
-      });
-
-      this.logger.log(`Credited ${bytesToCredit} bytes to user ${userId}`);
+        this.logger.log(`Credited ${bytesToCredit} bytes to user ${userId}`);
+      } catch (e: unknown) {
+        // P2002 = unique constraint on stripePaymentId: a concurrent webhook delivery
+        // already committed this credit. Transaction rolled back — nothing to do.
+        if ((e as { code?: string }).code === 'P2002') return;
+        throw e;
+      }
     }
 
     // Monthly subscription renewal — checkout.session.completed fires only once (initial).
@@ -190,23 +196,28 @@ export class BillingService {
       });
       if (existing) return;
 
-      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        await tx.user.update({
-          where: { id: user.id },
-          data: { bandwidthBytesRemaining: { increment: UNLIMITED_BYTES } },
+      try {
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { bandwidthBytesRemaining: { increment: UNLIMITED_BYTES } },
+          });
+          await tx.bandwidthTransaction.create({
+            data: {
+              userId: user.id,
+              type: 'purchase',
+              bytesDelta: UNLIMITED_BYTES,
+              description: 'Renouvellement Unlimited',
+              stripePaymentId: invoice.id,
+            },
+          });
         });
-        await tx.bandwidthTransaction.create({
-          data: {
-            userId: user.id,
-            type: 'purchase',
-            bytesDelta: UNLIMITED_BYTES,
-            description: 'Renouvellement Unlimited',
-            stripePaymentId: invoice.id,
-          },
-        });
-      });
-
-      this.logger.log(`Subscription renewal: credited ${UNLIMITED_BYTES} bytes to user ${user.id}`);
+        this.logger.log(`Subscription renewal: credited ${UNLIMITED_BYTES} bytes to user ${user.id}`);
+      } catch (e: unknown) {
+        // P2002 = unique constraint on stripePaymentId: concurrent delivery already credited.
+        if ((e as { code?: string }).code === 'P2002') return;
+        throw e;
+      }
     }
   }
 }

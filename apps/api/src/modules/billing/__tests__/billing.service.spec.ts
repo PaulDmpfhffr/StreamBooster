@@ -163,6 +163,15 @@ describe('BillingService', () => {
       await service.handleWebhook(Buffer.from('{}'), 'sig');
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
+
+    it('idempotence — absorbe P2002 si un call concurrent a déjà inséré le stripePaymentId', async () => {
+      mockStripe.webhooks.constructEvent.mockReturnValue(makeEvent('starter'));
+      // findFirst retourne null (check passe), mais l'insert échoue car l'autre call concurrent a déjà committé
+      const p2002 = Object.assign(new Error('Unique constraint'), { code: 'P2002' });
+      mockPrisma.bandwidthTransaction.create.mockRejectedValueOnce(p2002);
+      // Ne doit pas lever d'exception
+      await expect(service.handleWebhook(Buffer.from('{}'), 'sig')).resolves.not.toThrow();
+    });
   });
 
   describe('handleWebhook — invoice.payment_succeeded (renouvellement abonnement)', () => {
