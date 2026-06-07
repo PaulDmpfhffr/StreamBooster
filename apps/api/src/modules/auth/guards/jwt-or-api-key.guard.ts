@@ -22,11 +22,11 @@ export class JwtOrApiKeyGuard implements CanActivate {
 
     if (apiKeyHeader) {
       const keyHash = createHash('sha256').update(apiKeyHeader).digest('hex');
-      const record = await this.prisma.apiKey.findFirst({
-        where: { keyHash, isActive: true },
+      const record = await this.prisma.apiKey.findUnique({
+        where: { keyHash },
         include: { user: true },
       });
-      if (!record) throw new UnauthorizedException('Invalid API key');
+      if (!record || !record.isActive) throw new UnauthorizedException('Invalid API key');
       await this.prisma.apiKey.update({ where: { id: record.id }, data: { lastUsedAt: new Date() } });
       req.user = record.user;
       req.apiKey = record;
