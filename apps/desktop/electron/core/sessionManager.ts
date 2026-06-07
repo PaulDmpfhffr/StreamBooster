@@ -15,7 +15,7 @@ export interface SessionConfig {
 export interface ActiveSession {
   sessionId: string;
   contexts: BrowserContext[];
-  heartbeatTimer: NodeJS.Timer;
+  heartbeatTimer: ReturnType<typeof setInterval>;
 }
 
 const SCREENSHOT_INTERVAL_MS = 5000;

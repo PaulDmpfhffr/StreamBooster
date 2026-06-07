@@ -2,7 +2,7 @@ import { Link, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import {
   LayoutDashboard, Key, CreditCard, BarChart3,
-  Settings, LogOut, Shield,
+  LogOut, Shield,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
