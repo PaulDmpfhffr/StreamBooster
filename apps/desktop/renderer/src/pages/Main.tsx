@@ -30,7 +30,15 @@ export default function Main({ account, onLogout }: Props) {
       setScreenshots((prev) => ({ ...prev, [index]: dataUrl }));
     };
     const onHeartbeat = async (sid: unknown) => {
-      if (typeof sid === 'string') await window.sbAPI.apiHeartbeat(sid);
+      if (typeof sid !== 'string') return;
+      const result = await window.sbAPI.apiHeartbeat(sid) as { sessionExpired?: boolean } | undefined;
+      if (result?.sessionExpired) {
+        // Session expired server-side (cron heartbeat timeout) — reset local state.
+        setSessionId(null);
+        setScreenshots({});
+        setSessionState('idle');
+        await window.sbAPI.sessionStop(sid).catch(() => {});
+      }
     };
 
     window.sbAPI.on('screenshot:update', onScreenshot);

@@ -48,10 +48,13 @@ export function registerApiIpc() {
   ipcMain.handle('api:session-heartbeat', async (_e, sessionId: string) => {
     const key = getApiKey();
     if (!key) return;
-    await fetch(`${getApiBase()}/sessions/${sessionId}/heartbeat`, {
+    const res = await fetch(`${getApiBase()}/sessions/${sessionId}/heartbeat`, {
       method: 'POST',
       headers: { 'x-api-key': key },
     });
+    // 404 = session expired by the cron while client was running.
+    // Return a flag so the renderer can stop the local session and update the UI.
+    if (res.status === 404) return { sessionExpired: true };
   });
 
   ipcMain.handle('api:session-stop', async (_e, sessionId: string) => {
