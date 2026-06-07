@@ -72,7 +72,9 @@ Créer les 4 produits dans le dashboard Stripe et mettre à jour `STRIPE_PRICE_*
 | Unlimited | `STRIPE_PRICE_UNLIMITED` |
 
 Webhook Stripe : `https://your-api.railway.app/api/v1/billing/webhook`
-Événement : `checkout.session.completed`
+Événements à activer :
+- `checkout.session.completed` (achat initial)
+- `invoice.payment_succeeded` (renouvellements mensuels abonnement Unlimited)
 
 ## 6. App Electron — Build & Distribution
 
