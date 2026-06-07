@@ -12,6 +12,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Single in-flight refresh promise — prevents replay-attack false logouts when
+// multiple requests hit 401 simultaneously (Redis blacklist rejects duplicate refreshes).
+let refreshPromise: Promise<{ accessToken: string; refreshToken: string }> | null = null;
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -19,8 +23,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
-        const refreshToken = useAuthStore.getState().refreshToken;
-        const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken });
+        if (!refreshPromise) {
+          refreshPromise = axios
+            .post('/api/v1/auth/refresh', { refreshToken: useAuthStore.getState().refreshToken })
+            .then((r) => r.data)
+            .finally(() => { refreshPromise = null; });
+        }
+        const data = await refreshPromise;
         useAuthStore.getState().setTokens(data.accessToken, data.refreshToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
