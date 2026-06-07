@@ -189,4 +189,43 @@ describe('SessionsService', () => {
       expect(txCall.data.bytesDelta).toBeLessThan(0);
     });
   });
+
+  describe('expireDeadSessions', () => {
+    it('continue de traiter les sessions suivantes si l\'une échoue (isolation erreur)', async () => {
+      // sess-1 : findUnique ok mais updateMany lève une erreur (simule DB timeout)
+      // sess-2 : traitée normalement après l'erreur de sess-1
+      mockPrisma.session.findMany.mockResolvedValue([
+        { id: 'sess-err' },
+        { id: 'sess-ok' },
+      ]);
+
+      const baseSession = {
+        id: 'sess-ok',
+        userId: 'user-1',
+        status: 'active',
+        startedAt: new Date(Date.now() - 60_000),
+        instanceCount: 1,
+        bytesEstimated: BigInt(500 * 1024 * 1024),
+      };
+
+      mockPrisma.session.findUnique
+        .mockResolvedValueOnce({ ...baseSession, id: 'sess-err' })
+        .mockResolvedValueOnce(baseSession);
+
+      // sess-err : updateMany lève une erreur
+      // sess-ok : updateMany réussit
+      mockPrisma.session.updateMany
+        .mockRejectedValueOnce(new Error('DB timeout'))
+        .mockResolvedValueOnce({ count: 1 });
+
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
+
+      await service.expireDeadSessions();
+
+      // broadcastSessionUpdate doit avoir été appelé pour sess-ok malgré l'erreur sur sess-err
+      expect(mockGateway.broadcastSessionUpdate).toHaveBeenCalledWith({ id: 'sess-ok', status: 'ended' });
+      expect(mockGateway.broadcastSessionUpdate).not.toHaveBeenCalledWith({ id: 'sess-err', status: 'ended' });
+    });
+  });
 });
