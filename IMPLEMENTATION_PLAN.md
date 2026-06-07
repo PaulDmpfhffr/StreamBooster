@@ -147,3 +147,4 @@
 | 20 | 2026-06-07 | Admin stats corrigées — getStats() comptabilisait les ajustements manuels admin comme des achats (type='purchase' sans stripePaymentId). Fix : filtre ajouté stripePaymentId: { not: null } pour n'agréger que les vrais achats Stripe |
 | 21 | 2026-06-07 | Tests billing complétés — 4 nouveaux cas handleWebhook : (1) starter crédite 10 Go exact, (2) unlimited crédite 10 To (UNLIMITED_BYTES, régression fix itération 6), (3) event inconnu ignoré silencieusement, (4) signature invalide → BadRequestException |
 | 22 | 2026-06-07 | Desktop Main.tsx — getAccount() dans finally bloquait stopSession en cas d'erreur réseau (unhandled rejection). Fix : rafraîchissement du solde rendu non-bloquant via .then().catch(() => {}) |
+| 23 | 2026-06-07 | Tests proxies renforcés — ajout cas ciphertext corrompu dans allocateProxies : doit lancer BadRequestException (couverture du try-catch decrypt ajouté itération 15) |

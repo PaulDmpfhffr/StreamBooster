@@ -75,6 +75,15 @@ describe('ProxiesService', () => {
       expect(allocated).toHaveLength(2);
       expect(allocated[0].address).toBe(proxyAddress);
     });
+
+    it('lève BadRequestException si le ciphertext du proxy est corrompu', async () => {
+      mockPrisma.proxyProvider.findMany.mockResolvedValue([{ id: 'p1', priority: 1 }]);
+      mockPrisma.proxyPool.findMany.mockResolvedValue([
+        { id: 'proxy-1', addressEncrypted: 'deadbeef:notvalidhex!!', providerId: 'p1' },
+      ]);
+
+      await expect(service.allocateProxies(1)).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('getReservedBytesForCount', () => {
