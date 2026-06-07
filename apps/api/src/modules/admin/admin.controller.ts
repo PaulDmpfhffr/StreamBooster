@@ -8,6 +8,7 @@ import {
   Body,
   UseGuards,
   UseInterceptors,
+  NotFoundException,
 } from '@nestjs/common';
 import { IsNumber, IsNotEmpty, IsString, IsNotIn, IsIn, Length, IsInt, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -119,6 +120,9 @@ export class AdminController {
     @Param('id') userId: string,
     @Body() body: AdjustBandwidthDto,
   ) {
+    const target = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!target) throw new NotFoundException('User not found');
+
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },

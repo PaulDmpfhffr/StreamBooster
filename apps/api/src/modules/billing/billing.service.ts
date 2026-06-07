@@ -87,11 +87,22 @@ export class BillingService {
     let stripeCustomerId = user.stripeCustomerId;
     if (!stripeCustomerId) {
       const customer = await this.stripe.customers.create({ email: user.email });
-      stripeCustomerId = customer.id;
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { stripeCustomerId },
+      // Atomic write: only save if no other concurrent request already saved a customer.
+      // updateMany(WHERE stripeCustomerId IS NULL) → count=0 means we lost the race.
+      const saved = await this.prisma.user.updateMany({
+        where: { id: userId, stripeCustomerId: null },
+        data: { stripeCustomerId: customer.id },
       });
+      if (saved.count === 0) {
+        // Another concurrent checkout already created and saved a customer; use theirs.
+        const fresh = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { stripeCustomerId: true },
+        });
+        stripeCustomerId = fresh!.stripeCustomerId!;
+      } else {
+        stripeCustomerId = customer.id;
+      }
     }
 
     const stripePriceId = this.getStripePriceId(def.id);
