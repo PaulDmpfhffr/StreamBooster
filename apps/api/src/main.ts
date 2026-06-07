@@ -10,6 +10,24 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 };
 
 async function bootstrap() {
+  // Fail fast in production if critical secrets are missing.
+  // The defaults in configuration.ts are for local dev only.
+  if (process.env.NODE_ENV === 'production') {
+    const required = [
+      'JWT_SECRET',
+      'JWT_REFRESH_SECRET',
+      'ENCRYPTION_KEY',
+      'STRIPE_SECRET_KEY',
+      'STRIPE_WEBHOOK_SECRET',
+      'DATABASE_URL',
+    ];
+    for (const key of required) {
+      if (!process.env[key]) {
+        throw new Error(`[bootstrap] Missing required environment variable: ${key}`);
+      }
+    }
+  }
+
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
 
