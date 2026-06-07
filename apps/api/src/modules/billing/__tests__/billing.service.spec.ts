@@ -9,6 +9,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   bandwidthTransaction: {
     create: jest.fn(),
@@ -48,6 +49,8 @@ describe('BillingService', () => {
     // Rétablir après clearAllMocks car $transaction est utilisé dans chaque test
     mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma));
     mockPrisma.bandwidthTransaction.findFirst.mockResolvedValue(null);
+    // Atomic customer save: count=1 means we won the race (key was null)
+    mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
   });
 
   describe('getProducts', () => {
@@ -65,19 +68,37 @@ describe('BillingService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('crée un customer Stripe si inexistant', async () => {
+    it('crée un customer Stripe si inexistant et le sauvegarde atomiquement', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'test@test.com',
         stripeCustomerId: null,
       });
-      mockPrisma.user.update.mockResolvedValue({});
 
       const result = await service.createCheckout(
         'user-1', 'starter', 'http://success', 'http://cancel',
       );
 
       expect(mockStripe.customers.create).toHaveBeenCalledWith({ email: 'test@test.com' });
+      // updateMany(WHERE stripeCustomerId IS NULL) doit être utilisé pour l'écriture atomique
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-1', stripeCustomerId: null },
+        data: { stripeCustomerId: 'cus_test' },
+      });
+      expect(result.checkoutUrl).toBe('https://stripe.com/pay/cs_test');
+    });
+
+    it('réutilise le customer d\'une requête concurrente si la sauvegarde atomique échoue (count=0)', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ id: 'user-1', email: 'test@test.com', stripeCustomerId: null })
+        .mockResolvedValueOnce({ id: 'user-1', stripeCustomerId: 'cus_concurrent' });
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 0 }); // concurrent request won
+
+      const result = await service.createCheckout(
+        'user-1', 'starter', 'http://success', 'http://cancel',
+      );
+
+      expect(mockStripe.customers.create).toHaveBeenCalledTimes(1); // created but not saved
       expect(result.checkoutUrl).toBe('https://stripe.com/pay/cs_test');
     });
   });
