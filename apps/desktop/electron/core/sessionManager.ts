@@ -107,6 +107,15 @@ export class SessionManager {
     this.activeSessions.delete(sessionId);
   }
 
+  async stopAll(): Promise<void> {
+    const ids = [...this.activeSessions.keys()];
+    await Promise.allSettled(ids.map((id) => this.stop(id)));
+    if (this.browser) {
+      await this.browser.close().catch(() => {});
+      this.browser = null;
+    }
+  }
+
   private getInjector(platform: string) {
     switch (platform) {
       case 'youtube': return injectYoutube;

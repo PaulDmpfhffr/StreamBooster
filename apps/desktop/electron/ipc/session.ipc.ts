@@ -1,7 +1,10 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, app } from 'electron';
 import { SessionManager } from '../core/sessionManager';
 
 const manager = new SessionManager();
+
+// Stop all active browser sessions before the app quits to avoid orphan processes.
+app.on('before-quit', () => { manager.stopAll().catch(() => {}); });
 
 export function registerSessionIpc(getWin: () => BrowserWindow | null) {
   ipcMain.handle('session:start', async (_e, config: {
