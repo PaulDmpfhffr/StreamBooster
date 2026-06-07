@@ -8,7 +8,7 @@ import { getRedisToken } from '@nestjs-modules/ioredis';
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-  session: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), create: jest.fn() },
+  session: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn(), create: jest.fn() },
   bandwidthTransaction: { create: jest.fn() },
   sessionProxy: { createMany: jest.fn() },
   $transaction: jest.fn((fn: Function) => fn(mockPrisma)),
@@ -123,7 +123,7 @@ describe('SessionsService', () => {
 
     it('émet broadcastSessionUpdate à la fin', async () => {
       mockPrisma.session.findUnique.mockResolvedValue(baseSession);
-      mockPrisma.session.update.mockResolvedValue({});
+      mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
 
@@ -133,11 +133,21 @@ describe('SessionsService', () => {
       expect(mockRedis.del).toHaveBeenCalledWith('session:sess-1:heartbeat');
     });
 
+    it('ne fait rien si la session a déjà été finalisée par un appel concurrent (updateMany count=0)', async () => {
+      mockPrisma.session.findUnique.mockResolvedValue(baseSession);
+      mockPrisma.session.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.finalizeSession('sess-1');
+
+      expect(mockGateway.broadcastSessionUpdate).not.toHaveBeenCalled();
+      expect(mockRedis.del).not.toHaveBeenCalled();
+    });
+
     it('rembourse les bytes si la consommation réelle est inférieure à la réservation', async () => {
       // 1s de session → consommation très faible < 500 Mo réservé
       const shortSession = { ...baseSession, startedAt: new Date(Date.now() - 1_000) };
       mockPrisma.session.findUnique.mockResolvedValue(shortSession);
-      mockPrisma.session.update.mockResolvedValue({});
+      mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
 
@@ -153,7 +163,7 @@ describe('SessionsService', () => {
       // 1 heure de session à 5 MB/s >> 500 Mo réservé
       const longSession = { ...baseSession, startedAt: new Date(Date.now() - 3_600_000) };
       mockPrisma.session.findUnique.mockResolvedValue(longSession);
-      mockPrisma.session.update.mockResolvedValue({});
+      mockPrisma.session.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.bandwidthTransaction.create.mockResolvedValue({});
 

@@ -144,11 +144,13 @@ export class SessionsService {
     const reserved = Number(session.bytesEstimated);
     const adjustment = reserved - bytesConsumed;
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.session.update({
-        where: { id: sessionId },
+    const finalized = await this.prisma.$transaction(async (tx) => {
+      // Atomic guard against concurrent cron + manual stop double-finalization
+      const claimed = await tx.session.updateMany({
+        where: { id: sessionId, status: 'active' },
         data: { status: 'ended', endedAt, bytesEstimated: bytesConsumed },
       });
+      if (claimed.count === 0) return false; // already finalized by concurrent call
 
       await tx.user.update({
         where: { id: session.userId },
@@ -169,8 +171,10 @@ export class SessionsService {
           },
         });
       }
+      return true;
     });
 
+    if (!finalized) return;
     await this.redis.del(`session:${sessionId}:heartbeat`);
     this.gateway.broadcastSessionUpdate({ id: sessionId, status: 'ended' });
   }
