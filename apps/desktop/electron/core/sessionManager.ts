@@ -37,37 +37,44 @@ export class SessionManager {
 
     const contexts: BrowserContext[] = [];
 
-    for (const proxy of config.proxies) {
-      const [protocol, rest] = proxy.address.replace('://', '@@').split('@@');
-      const [credentials, hostPort] = rest.includes('@') ? rest.split('@') : ['', rest];
-      const [username, password] = credentials.split(':');
+    try {
+      for (const proxy of config.proxies) {
+        const [protocol, rest] = proxy.address.replace('://', '@@').split('@@');
+        const [credentials, hostPort] = rest.includes('@') ? rest.split('@') : ['', rest];
+        const [username, password] = credentials.split(':');
 
-      const ctx = await this.browser.newContext({
-        proxy: {
-          server: `${protocol}://${hostPort}`,
-          username: username || undefined,
-          password: password || undefined,
-        },
-      });
+        const ctx = await this.browser.newContext({
+          proxy: {
+            server: `${protocol}://${hostPort}`,
+            username: username || undefined,
+            password: password || undefined,
+          },
+        });
+        contexts.push(ctx); // push early so cleanup catches it on error
 
-      const page = await ctx.newPage();
-      await page.goto(config.streamUrl, { waitUntil: 'domcontentloaded' });
-      await injector(page);
+        const page = await ctx.newPage();
+        await page.goto(config.streamUrl, { waitUntil: 'domcontentloaded' });
+        await injector(page);
 
-      if (config.onScreenshot) {
-        const captureLoop = async () => {
-          while (this.activeSessions.has(config.sessionId)) {
-            try {
-              const png = await page.screenshot({ type: 'png' });
-              config.onScreenshot!(proxy.index, png);
-            } catch {}
-            await new Promise((r) => setTimeout(r, SCREENSHOT_INTERVAL_MS));
-          }
-        };
-        captureLoop().catch(() => {});
+        if (config.onScreenshot) {
+          const captureLoop = async () => {
+            while (this.activeSessions.has(config.sessionId)) {
+              try {
+                const png = await page.screenshot({ type: 'png' });
+                config.onScreenshot!(proxy.index, png);
+              } catch {}
+              await new Promise((r) => setTimeout(r, SCREENSHOT_INTERVAL_MS));
+            }
+          };
+          captureLoop().catch(() => {});
+        }
       }
-
-      contexts.push(ctx);
+    } catch (err) {
+      // Nettoyage des contextes partiellement créés avant de propager l'erreur
+      for (const ctx of contexts) {
+        await ctx.close().catch(() => {});
+      }
+      throw err;
     }
 
     const heartbeatTimer = setInterval(heartbeatFn, 30_000);
