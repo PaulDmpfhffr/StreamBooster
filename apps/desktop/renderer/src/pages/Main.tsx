@@ -82,8 +82,12 @@ export default function Main({ account, onLogout }: Props) {
     if (!sessionId) return;
     setSessionState('stopping');
     try {
-      await window.sbAPI.sessionStop(sessionId);
-      await window.sbAPI.apiSessionStop(sessionId);
+      // Run both stops concurrently and independently — if the Electron browser
+      // context fails, the API session must still be terminated to stop billing.
+      await Promise.allSettled([
+        window.sbAPI.sessionStop(sessionId),
+        window.sbAPI.apiSessionStop(sessionId),
+      ]);
     } finally {
       setSessionId(null);
       setScreenshots({});

@@ -40,8 +40,14 @@ export class SessionManager {
     try {
       for (const proxy of config.proxies) {
         const [protocol, rest] = proxy.address.replace('://', '@@').split('@@');
-        const [credentials, hostPort] = rest.includes('@') ? rest.split('@') : ['', rest];
-        const [username, password] = credentials.split(':');
+        // Use lastIndexOf so passwords containing '@' are handled correctly.
+        const lastAt = rest.lastIndexOf('@');
+        const credentials = lastAt >= 0 ? rest.substring(0, lastAt) : '';
+        const hostPort = lastAt >= 0 ? rest.substring(lastAt + 1) : rest;
+        // Use indexOf so passwords containing ':' are handled correctly (only first colon splits user/pass).
+        const colonIdx = credentials.indexOf(':');
+        const username = colonIdx >= 0 ? credentials.substring(0, colonIdx) : credentials;
+        const password = colonIdx >= 0 ? credentials.substring(colonIdx + 1) : '';
 
         const ctx = await this.browser.newContext({
           proxy: {
