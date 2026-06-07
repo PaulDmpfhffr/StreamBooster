@@ -231,5 +231,27 @@ describe('BillingService', () => {
       await service.handleWebhook(Buffer.from('{}'), 'sig');
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
+
+    it('crédite 10 To quand line.price est un ID string (non-expansé)', async () => {
+      // Stripe peut renvoyer line.price = "price_unlimited" (string) au lieu d'un objet Price
+      mockStripe.webhooks.constructEvent.mockReturnValue({
+        type: 'invoice.payment_succeeded',
+        data: {
+          object: {
+            id: 'in_string_price',
+            subscription: 'sub_test',
+            customer: 'cus_test',
+            lines: { data: [{ price: 'price_unlimited' }] },
+          },
+        },
+      });
+      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'user-1' });
+
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+
+      const call = mockPrisma.user.update.mock.calls[0][0];
+      const TEN_TB = 10 * 1024 * 1024 * 1024 * 1024;
+      expect(call.data.bandwidthBytesRemaining.increment).toBe(TEN_TB);
+    });
   });
 });

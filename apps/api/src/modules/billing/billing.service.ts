@@ -185,9 +185,11 @@ export class BillingService {
       if (!user) return;
 
       const unlimitedPriceId = this.getStripePriceId('unlimited');
-      const hasUnlimitedLine = invoice.lines.data.some(
-        (line) => (line.price as Stripe.Price | null)?.id === unlimitedPriceId,
-      );
+      const hasUnlimitedLine = invoice.lines.data.some((line) => {
+        const price = line.price;
+        const priceId = typeof price === 'string' ? price : price?.id;
+        return priceId === unlimitedPriceId;
+      });
       if (!hasUnlimitedLine) return;
 
       // Idempotency: invoice.id is always non-null; prevents double-credit on Stripe retries.
