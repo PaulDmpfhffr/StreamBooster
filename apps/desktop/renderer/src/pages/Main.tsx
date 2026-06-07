@@ -45,6 +45,7 @@ export default function Main({ account, onLogout }: Props) {
   const startSession = async () => {
     if (!streamUrl) return;
     setSessionState('starting');
+    let apiSessionId: string | null = null;
     try {
       const result = await window.sbAPI.apiSessionStart({
         platform: detectPlatformName(streamUrl),
@@ -53,6 +54,7 @@ export default function Main({ account, onLogout }: Props) {
         preferProxyCountry: country,
       });
 
+      apiSessionId = result.sessionId;
       setSessionId(result.sessionId);
       setBandwidth(result.bandwidthRemainingBytes);
 
@@ -65,6 +67,12 @@ export default function Main({ account, onLogout }: Props) {
       setSessionState('active');
     } catch (e) {
       console.error(e);
+      // Si l'API a créé la session mais que l'initialiseur Electron a échoué,
+      // clore proprement la session côté API pour éviter une perte de bandwidth.
+      if (apiSessionId) {
+        window.sbAPI.apiSessionStop(apiSessionId).catch(() => {});
+      }
+      setSessionId(null);
       setSessionState('idle');
       alert(`Erreur: ${(e as Error).message}`);
     }

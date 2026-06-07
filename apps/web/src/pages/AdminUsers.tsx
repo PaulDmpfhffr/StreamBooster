@@ -34,13 +34,13 @@ export default function AdminUsers() {
       setReason('');
     },
     onError: () => {
-      setAdjusting(null);
+      alert('Erreur lors de l\'ajustement de la bande passante. Vérifiez les valeurs.');
     },
   });
 
   const handleAdjust = (userId: string) => {
     const go = parseFloat(delta);
-    if (isNaN(go) || !reason) return;
+    if (isNaN(go) || go === 0 || !reason) return;
     adjust.mutate({ userId, bytesDelta: Math.round(go * 1024 * 1024 * 1024), reason });
   };
 
