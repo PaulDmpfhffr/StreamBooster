@@ -144,8 +144,9 @@ describe('BillingService', () => {
             subscription: 'sub_test',
             customer: 'cus_test',
             payment_intent: 'pi_renewal',
+            // getStripePriceId('unlimited') retourne 'price_unlimited' (fallback quand config.get n'est pas un objet)
             lines: {
-              data: [{ price: { id: 'test_value' } }], // test_value = mockConfig.get() retour par défaut
+              data: [{ price: { id: 'price_unlimited' } }],
             },
           },
         },
